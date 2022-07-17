@@ -1,42 +1,43 @@
-pub mod button;
-
 use std::fmt;
 use std::fmt::Formatter;
-use bevy::app::AppExit;
 use bevy::prelude::*;
+use bevy_egui::{egui, EguiContext};
+use bevy_egui::egui::style::Margin;
 use iyes_loopless::prelude::*;
-use crate::{asset, DEFAULT_LOCALE, despawn_with, from_asset_loc, GameState, LocaleAsset, menu, NAMESPACE, Translatable};
-use crate::menu::{BUTTON_HEIGHT, BUTTON_SCALE, BUTTON_BOTTOM_PADDING, BUTTON_WIDTH, BUTTON_TEXT_SIZE};
-use crate::menu::button::{PreviousButtonInteraction, PreviousButtonProperties};
-use crate::state::menu::{BACKGROUND, BLUE_BUTTON, NORMAL_BUTTON, RED_BUTTON, TEXT_MARGIN};
-use crate::state::menu::button::{ButtonColor, ButtonDownImage, ButtonImageBundle, ButtonUpImage};
+use iyes_loopless::prelude::AppLooplessStateExt;
+use crate::{asset, DEFAULT_LOCALE, despawn_with, from_asset_loc, GameState, LocaleAsset, menu, NAMESPACE, ServerAddress, Translatable};
+use crate::menu::{BACKGROUND, BUTTON_BOTTOM_PADDING, BUTTON_HEIGHT, BUTTON_SCALE, BUTTON_TEXT_SIZE, BUTTON_WIDTH, NORMAL_BUTTON, TEXT_MARGIN};
+use crate::menu::button::{ButtonColor, ButtonDownImage, ButtonImageBundle, ButtonUpImage, PreviousButtonInteraction, PreviousButtonProperties};
 
-pub struct TitleScreenPlugin;
+pub struct ServerSelectPlugin;
 
-impl Plugin for TitleScreenPlugin {
+impl Plugin for ServerSelectPlugin {
 	fn build(&self, app: &mut App) {
 		app
-			.add_enter_system(GameState::TitleScreen, setup)
-			.add_exit_system(GameState::TitleScreen, despawn_with::<OnTitleScreen>)
+			.add_enter_system(GameState::ServerSelect, setup)
+			.add_exit_system(GameState::ServerSelect, despawn_with::<OnServerSelect>)
 			.add_system(
 				menu::button::style
-					.run_in_state(GameState::TitleScreen)
+					.run_in_state(GameState::ServerSelect)
 			)
 			.add_system(
 				button_action
-					.run_in_state(GameState::TitleScreen)
+					.run_in_state(GameState::ServerSelect)
+			)
+			.add_system(
+				text_box
+					.run_in_state(GameState::ServerSelect)
 			);
 	}
 }
 
 #[derive(Component)]
-struct OnTitleScreen;
+struct OnServerSelect;
 
 #[derive(Debug, Component)]
 enum ButtonAction {
-	Singleplayer,
-	Multiplayer,
-	Quit,
+	Connect,
+	Back,
 }
 
 impl fmt::Display for ButtonAction {
@@ -54,7 +55,20 @@ fn setup(
 	let monogram = asset_server.get_handle(from_asset_loc(NAMESPACE, "fonts/monogram/monogram-extended.ttf"));
 	let button_up = ButtonUpImage::from(asset_server.get_handle(from_asset_loc(NAMESPACE, "textures/ui/button/button_up.png")));
 	let button_down = ButtonDownImage::from(asset_server.get_handle(from_asset_loc(NAMESPACE, "textures/ui/button/button_down.png")));
-
+	
+	let button_image_bundle = ButtonImageBundle {
+		button_up,
+		button_down,
+		..default()
+	};
+	let button_size = Size::new(Val::Px(BUTTON_WIDTH * BUTTON_SCALE), Val::Px(BUTTON_HEIGHT * BUTTON_SCALE));
+	let button_margin = Rect::all(Val::Auto);
+	let (justify_content, align_items) = (JustifyContent::Center, AlignItems::Center);
+	let button_padding = Rect {
+		bottom: Val::Px(BUTTON_BOTTOM_PADDING * BUTTON_SCALE),
+		..default()
+	};
+	
 	// root
 	commands
 		.spawn_bundle(
@@ -66,27 +80,13 @@ fn setup(
 					flex_direction: FlexDirection::ColumnReverse,
 					..default()
 				},
-				// background color
 				color: BACKGROUND.into(),
 				..default()
 			}
 		)
-		.insert(OnTitleScreen)
+		.insert(OnServerSelect)
 		.with_children(|parent| {
-			let button_image_bundle = ButtonImageBundle {
-				button_up,
-				button_down,
-				..default()
-			};
-			let button_size = Size::new(Val::Px(BUTTON_WIDTH * BUTTON_SCALE), Val::Px(BUTTON_HEIGHT * BUTTON_SCALE));
-			let button_margin = Rect::all(Val::Auto);
-			let (justify_content, align_items) = (JustifyContent::Center, AlignItems::Center);
-			let button_padding = Rect {
-				bottom: Val::Px(BUTTON_BOTTOM_PADDING * BUTTON_SCALE),
-				..default()
-			};
-			
-			// title
+			// select a server
 			parent
 				.spawn_bundle(
 					TextBundle {
@@ -101,14 +101,14 @@ fn setup(
 						},
 						text: Text::with_section(
 							Translatable::translate_once(
-								asset::namespaced(NAMESPACE, "ui.title_screen.text.title").as_str(),
+								asset::namespaced(NAMESPACE, "ui.server_select.text.select_server").as_str(),
 								DEFAULT_LOCALE,
 								&asset_server,
 								&locale_assets,
 							),
 							TextStyle {
-								font: monogram.clone(),
-								font_size: 90.0,
+								font: monogram.clone_weak(),
+								font_size: 45.0,
 								color: Color::WHITE,
 							},
 							default(),
@@ -133,7 +133,7 @@ fn setup(
 					}
 				)
 				.with_children(|parent| {
-					// multiplayer button
+					// connect button
 					parent
 						.spawn_bundle(
 							ButtonBundle {
@@ -151,7 +151,7 @@ fn setup(
 						.insert(ButtonColor(NORMAL_BUTTON))
 						.insert_bundle(button_image_bundle.clone())
 						.insert_bundle(PreviousButtonProperties::default())
-						.insert(ButtonAction::Multiplayer)
+						.insert(ButtonAction::Connect)
 						.with_children(|parent| {
 							parent
 								.spawn_bundle(
@@ -162,7 +162,7 @@ fn setup(
 										},
 										text: Text::with_section(
 											Translatable::translate_once(
-												asset::namespaced(NAMESPACE, "ui.title_screen.button.multiplayer").as_str(),
+												asset::namespaced(NAMESPACE, "ui.server_select.button.connect").as_str(),
 												DEFAULT_LOCALE,
 												&asset_server,
 												&locale_assets,
@@ -179,7 +179,7 @@ fn setup(
 								);
 						});
 					
-					// quit button
+					// back button
 					parent
 						.spawn_bundle(
 							ButtonBundle {
@@ -197,7 +197,7 @@ fn setup(
 						.insert(ButtonColor(NORMAL_BUTTON))
 						.insert_bundle(button_image_bundle.clone())
 						.insert_bundle(PreviousButtonProperties::default())
-						.insert(ButtonAction::Quit)
+						.insert(ButtonAction::Back)
 						.with_children(|parent| {
 							parent
 								.spawn_bundle(
@@ -208,7 +208,7 @@ fn setup(
 										},
 										text: Text::with_section(
 											Translatable::translate_once(
-												asset::namespaced(NAMESPACE, "ui.title_screen.button.quit").as_str(),
+												asset::namespaced(NAMESPACE, "ui.server_select.button.back").as_str(),
 												DEFAULT_LOCALE,
 												&asset_server,
 												&locale_assets,
@@ -228,21 +228,44 @@ fn setup(
 		});
 }
 
+fn text_box(
+	mut gui_ctx: ResMut<EguiContext>,
+	asset_server: Res<AssetServer>,
+	locale_assets: Res<Assets<LocaleAsset>>,
+	mut server_address: ResMut<ServerAddress>,
+) {
+	let button_up = ButtonUpImage::from(asset_server.get_handle(from_asset_loc(NAMESPACE, "textures/ui/button/button_up.png")));
+	let button_down = ButtonDownImage::from(asset_server.get_handle(from_asset_loc(NAMESPACE, "textures/ui/button/button_down.png")));
+	
+	let button_size = Vec2::new(BUTTON_WIDTH, BUTTON_HEIGHT) * BUTTON_SCALE;
+	let button_margin = Margin::default();
+	let button_padding = Rect {
+		bottom: Val::Px(BUTTON_BOTTOM_PADDING * BUTTON_SCALE),
+		..default()
+	};
+	
+	egui::Window::new(Translatable::translate_once(
+		asset::namespaced(NAMESPACE, "ui.server_select.window.title.address").as_str(),
+		DEFAULT_LOCALE,
+		&asset_server,
+		&locale_assets,
+	)).show(gui_ctx.ctx_mut(), |ui| {
+		ui.text_edit_singleline(&mut server_address.0);
+	});
+}
+
 fn button_action(
 	interaction_query: Query<
 		(&Interaction, &PreviousButtonInteraction, &ButtonAction),
 		(Changed<Interaction>, With<Button>),
 	>,
-	mut app_exit_events: EventWriter<AppExit>,
 	mut commands: Commands,
 ) {
 	for (interaction, previous_interaction, button_action) in interaction_query.iter() {
-		// only execute action if still hovering after click ends
 		if *interaction == Interaction::Hovered && *previous_interaction == Interaction::Clicked.into() {
 			match button_action {
-				// ButtonAction::Singleplayer => commands.insert_resource(NextState(GameState::WorldSelect)), // todo: singleplayer
-				ButtonAction::Multiplayer => commands.insert_resource(NextState(GameState::ServerSelect)),
-				ButtonAction::Quit => app_exit_events.send(AppExit),
+				ButtonAction::Connect => commands.insert_resource(NextState(GameState::LoadingWorld)),
+				ButtonAction::Back => commands.insert_resource(NextState(GameState::TitleScreen)),
 				_ => unimplemented!("{}", button_action),
 			}
 		}

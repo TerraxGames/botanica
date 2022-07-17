@@ -6,7 +6,10 @@
 	"ui.title_screen.button.multiplayer": "Multiplayer",
 	"ui.title_screen.button.quit": "Quit",
 	"ui.world_select.text.world_select": "Select or create a world",
-	"ui.server_select.text.server_select": "Join a server",
+	"ui.server_select.text.select_server": "Join a server",
+	"ui.server_select.button.connect": "Connect",
+	"ui.server_select.button.back": "Back",
+	"ui.server_select.window.title.address": "Server Address",
 
 	// Blocks
 	"tile.name.dirt": "Dirt",

@@ -101,7 +101,7 @@ pub struct PreviousButtonProperties {
 	pub previous_bottom_padding: PreviousButtonBottomPadding,
 }
 
-/// Handles button style when interacted
+/// Handles button style
 pub fn style(
 	mut interaction_query: Query<
 		(&Interaction, &mut PreviousButtonInteraction, &mut UiColor, &ButtonColor, &mut UiImage, &ButtonUpImage, &ButtonDownImage, &mut Style, &mut PreviousButtonBottomPadding),
