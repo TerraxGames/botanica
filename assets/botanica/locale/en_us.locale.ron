@@ -1,0 +1,22 @@
+{
+	// UI
+	"ui.bevy_splash.text.made_with": "made with Bevy",
+	"ui.title_screen.text.title": "Botanica",
+	"ui.title_screen.button.singleplayer": "Singeplayer",
+	"ui.title_screen.button.multiplayer": "Multiplayer",
+	"ui.title_screen.button.quit": "Quit",
+	"ui.world_select.text.world_select": "Select or create a world",
+	"ui.server_select.text.server_select": "Join a server",
+
+	// Blocks
+	"tile.name.dirt": "Dirt",
+	"tile.name.grass": "Grass",
+	"tile.name.grass_plant": "Grass",
+	"tile.name.stone": "Stone",
+
+	// Items
+	//  Seeds
+	"item.name.dirt_seed": "Dirt Seed",
+	"item.name.grass_plant_seed": "Grass Seed",
+	"item.name.stone_seed": "Stone Seed",
+}
