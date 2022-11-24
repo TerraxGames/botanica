@@ -5,11 +5,14 @@
 	"ui.title_screen.button.singleplayer": "Singeplayer",
 	"ui.title_screen.button.multiplayer": "Multiplayer",
 	"ui.title_screen.button.quit": "Quit",
-	"ui.world_select.text.world_select": "Select or create a world",
 	"ui.server_select.text.select_server": "Join a server",
 	"ui.server_select.button.connect": "Connect",
 	"ui.server_select.button.back": "Back",
 	"ui.server_select.window.title.address": "Server Address",
+	"ui.world_select.text.world_select": "Select or create a world",
+	"ui.world_select.window.title.world_name": "Enter a world name",
+	"ui.world_select.button.enter": "Enter",
+	"ui.world_select.button.cancel": "Cancel",
 
 	// Blocks
 	"tile.name.dirt": "Dirt",

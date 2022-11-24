@@ -2,6 +2,8 @@ use crate::i18n::Translatable;
 use crate::identifier::Identifier;
 use crate::Registry;
 use crate::registry::def::Definition;
+use serde::{Serialize, Deserialize};
+use bevy::prelude::*;
 
 pub struct TileRegistry<'a>(pub Registry<'a, TileDef<'a>>);
 
@@ -10,6 +12,9 @@ impl<'a> Default for TileRegistry<'a> {
 		Self(Registry::new())
 	}
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Component)]
+pub struct TileData(pub u8); // todo: advanced tile data
 
 pub struct TileDef<'a> {
 	identifier: Identifier<'a>,

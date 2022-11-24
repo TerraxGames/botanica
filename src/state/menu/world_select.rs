@@ -5,40 +5,43 @@ use bevy_egui::{egui, EguiContext};
 use bevy_egui::egui::style::Margin;
 use iyes_loopless::prelude::*;
 use iyes_loopless::prelude::AppLooplessStateExt;
+use renet::RenetClient;
 use crate::{asset, DEFAULT_LOCALE, despawn_with, from_asset_loc, GameState, LocaleAsset, menu, NAMESPACE, ServerAddressPort, Translatable};
 use crate::menu::{BACKGROUND, BUTTON_BOTTOM_PADDING, BUTTON_HEIGHT, BUTTON_SCALE, BUTTON_TEXT_SIZE, BUTTON_WIDTH, NORMAL_BUTTON, TEXT_MARGIN};
 use crate::menu::button::{ButtonColor, ButtonDownImage, ButtonImageBundle, ButtonUpImage, PreviousButtonInteraction, PreviousButtonProperties};
 use crate::server::ServerAddress;
 
-pub struct ServerSelectPlugin;
+struct WorldSelection(String);
 
-impl Plugin for ServerSelectPlugin {
+pub struct WorldSelectPlugin;
+
+impl Plugin for WorldSelectPlugin {
 	fn build(&self, app: &mut App) {
 		app
-			.add_enter_system(GameState::ServerSelect, setup)
-			.add_exit_system(GameState::ServerSelect, despawn_with::<OnServerSelect>)
+			.add_enter_system(GameState::WorldSelect, setup)
+			.add_exit_system(GameState::WorldSelect, despawn_with::<OnWorldSelect>)
 			.add_system(
 				menu::button::style
-					.run_in_state(GameState::ServerSelect)
+					.run_in_state(GameState::WorldSelect)
 			)
 			.add_system(
 				button_action
-					.run_in_state(GameState::ServerSelect)
+					.run_in_state(GameState::WorldSelect)
 			)
 			.add_system(
 				text_box
-					.run_in_state(GameState::ServerSelect)
+					.run_in_state(GameState::WorldSelect)
 			);
 	}
 }
 
 #[derive(Component)]
-struct OnServerSelect;
+struct OnWorldSelect;
 
 #[derive(Debug, Component)]
 enum ButtonAction {
-	Connect,
-	Back,
+	Enter,
+	Cancel,
 }
 
 impl fmt::Display for ButtonAction {
@@ -85,9 +88,9 @@ fn setup(
 				..default()
 			}
 		)
-		.insert(OnServerSelect)
+		.insert(OnWorldSelect)
 		.with_children(|parent| {
-			// select a server
+			// select a world
 			parent
 				.spawn_bundle(
 					TextBundle {
@@ -102,7 +105,7 @@ fn setup(
 						},
 						text: Text::with_section(
 							Translatable::translate_once(
-								asset::namespaced(NAMESPACE, "ui.server_select.text.select_server").as_str(),
+								asset::namespaced(NAMESPACE, "ui.world_select.text.world_select").as_str(),
 								DEFAULT_LOCALE,
 								&asset_server,
 								&locale_assets,
@@ -134,7 +137,7 @@ fn setup(
 					}
 				)
 				.with_children(|parent| {
-					// connect button
+					// enter button
 					parent
 						.spawn_bundle(
 							ButtonBundle {
@@ -152,7 +155,7 @@ fn setup(
 						.insert(ButtonColor(NORMAL_BUTTON))
 						.insert_bundle(button_image_bundle.clone())
 						.insert_bundle(PreviousButtonProperties::default())
-						.insert(ButtonAction::Connect)
+						.insert(ButtonAction::Enter)
 						.with_children(|parent| {
 							parent
 								.spawn_bundle(
@@ -163,7 +166,7 @@ fn setup(
 										},
 										text: Text::with_section(
 											Translatable::translate_once(
-												asset::namespaced(NAMESPACE, "ui.server_select.button.connect").as_str(),
+												asset::namespaced(NAMESPACE, "ui.world_select.button.enter").as_str(),
 												DEFAULT_LOCALE,
 												&asset_server,
 												&locale_assets,
@@ -180,7 +183,7 @@ fn setup(
 								);
 						});
 					
-					// back button
+					// cancel button
 					parent
 						.spawn_bundle(
 							ButtonBundle {
@@ -198,7 +201,7 @@ fn setup(
 						.insert(ButtonColor(NORMAL_BUTTON))
 						.insert_bundle(button_image_bundle.clone())
 						.insert_bundle(PreviousButtonProperties::default())
-						.insert(ButtonAction::Back)
+						.insert(ButtonAction::Cancel)
 						.with_children(|parent| {
 							parent
 								.spawn_bundle(
@@ -209,7 +212,7 @@ fn setup(
 										},
 										text: Text::with_section(
 											Translatable::translate_once(
-												asset::namespaced(NAMESPACE, "ui.server_select.button.back").as_str(),
+												asset::namespaced(NAMESPACE, "ui.world_select.button.cancel").as_str(),
 												DEFAULT_LOCALE,
 												&asset_server,
 												&locale_assets,
@@ -233,7 +236,7 @@ fn text_box(
 	mut gui_ctx: ResMut<EguiContext>,
 	asset_server: Res<AssetServer>,
 	locale_assets: Res<Assets<LocaleAsset>>,
-	mut server_address: ResMut<ServerAddressPort>,
+	mut world_name: ResMut<WorldSelection>,
 ) {
 	let button_up = ButtonUpImage::from(asset_server.get_handle(from_asset_loc(NAMESPACE, "textures/ui/button/button_up.png")));
 	let button_down = ButtonDownImage::from(asset_server.get_handle(from_asset_loc(NAMESPACE, "textures/ui/button/button_down.png")));
@@ -246,12 +249,12 @@ fn text_box(
 	};
 	
 	egui::Window::new(Translatable::translate_once(
-		asset::namespaced(NAMESPACE, "ui.server_select.window.title.address").as_str(),
+		asset::namespaced(NAMESPACE, "ui.world_select.window.title.world_name").as_str(),
 		DEFAULT_LOCALE,
 		&asset_server,
 		&locale_assets,
 	)).show(gui_ctx.ctx_mut(), |ui| {
-		ui.text_edit_singleline(&mut server_address.0);
+		ui.text_edit_singleline(&mut world_name.0);
 	});
 }
 
@@ -260,13 +263,17 @@ fn button_action(
 		(&Interaction, &PreviousButtonInteraction, &ButtonAction),
 		(Changed<Interaction>, With<Button>),
 	>,
+	mut client: ResMut<RenetClient>,
 	mut commands: Commands,
 ) {
 	for (interaction, previous_interaction, button_action) in interaction_query.iter() {
 		if *interaction == Interaction::Hovered && *previous_interaction == Interaction::Clicked.into() {
 			match button_action {
-				ButtonAction::Connect => commands.insert_resource(NextState(GameState::ClientConnecting)),
-				ButtonAction::Back => commands.insert_resource(NextState(GameState::TitleScreen)),
+				ButtonAction::Enter => commands.insert_resource(NextState(GameState::LoadingWorld)),
+				ButtonAction::Cancel => {
+					client.disconnect();
+					commands.insert_resource(NextState(GameState::TitleScreen));
+				},
 				_ => unimplemented!("{}", button_action),
 			}
 		}

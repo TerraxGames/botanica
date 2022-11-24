@@ -4,6 +4,7 @@ pub mod title_screen;
 pub mod button;
 pub mod bevy_splash;
 pub mod server_select;
+pub mod world_select;
 
 use bevy::asset::{AssetIo, AssetIoError, FileAssetIo};
 use bevy::prelude::*;
