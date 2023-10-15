@@ -1,14 +1,17 @@
 use std::collections::HashMap;
+
 use bevy::prelude::*;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
+
 use crate::networking::protocol::ClientId;
-use crate::TilePos;
 use crate::raw_id::RawId;
 use crate::registry::tile::TileData;
+use crate::TilePos;
 
 pub type WorldTile = (RawId, TileData);
 
-pub struct Worlds(pub HashMap<String, WorldId>, pub HashMap<WorldId, GameWorld>);
+#[derive(Resource, Default)]
+pub struct GameWorlds(pub HashMap<String, WorldId>, pub HashMap<WorldId, GameWorld>);
 
 #[derive(Debug, Clone, Serialize, Deserialize, Component)]
 pub struct GameWorld {

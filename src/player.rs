@@ -1,7 +1,9 @@
 use std::fmt;
-use std::fmt::Formatter;
+use std::fmt::{Formatter, Write};
+
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
+
 use crate::networking::protocol::ClientId;
 use crate::world;
 
@@ -20,7 +22,14 @@ pub enum Source {
 impl fmt::Display for Source {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		match self {
-			Self::Player(player_id, world_id) => f.write_fmt(format_args!("{} [in %w{{{}}}]", player_id.0, world_id.0)),
+			Self::Player(player_id, world_id) => {
+				f.write_fmt(format_args!("{}", player_id.0))?;
+				if let Some(world_id) = world_id {
+					f.write_fmt(format_args!(" [in %w{{{}}}]", world_id.0))
+				} else {
+					f.write_fmt(format_args!(""))
+				}
+			},
 			Self::Unknown => f.write_fmt(format_args!("(anonymous)")),
 			_ => f.write_str(""),
 		}
@@ -29,8 +38,8 @@ impl fmt::Display for Source {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Component)]
 pub enum Target {
-	Player(u64),
-	Players(Vec<u64>),
+	Player(ClientId),
+	Players(Vec<ClientId>),
 	/// The entire world.
 	World,
 	/// The entire server.

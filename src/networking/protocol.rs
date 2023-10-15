@@ -1,10 +1,16 @@
-use serde::{Deserialize, Serialize};
+use std::convert::Into;
+
 use bevy::prelude::*;
+use serde::{Deserialize, Serialize};
+
 use crate::{TilePos, Username};
 use crate::player::{Source, Target};
 
 pub const PROTOCOL_ID: u64 = 0x460709E200F3661E;
-pub const PROTOCOL_VER: u32 = 0;
+pub const PROTOCOL_VER: ProtocolVersion = ProtocolVersion(0);
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct ProtocolVersion(pub u32);
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 /// A type of message.
@@ -35,9 +41,11 @@ pub enum ServerMessage {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Component)]
 /// A message that the server sends to a client in response to a message from that client.
 pub enum ServerResponse {
+	JoinDeny(DisconnectReason),
+	JoinAccept,
 	Query {
 		/// The protocol version.
-		protocol_ver: u64,
+		protocol_ver: ProtocolVersion,
 		/// The game version string.
 		version: String,
 		motd: String,
@@ -46,8 +54,6 @@ pub enum ServerResponse {
 		/// The time the ping was sent.
 		timestamp: u128,
 	},
-	JoinDeny(DisconnectReason),
-	JoinAccept,
 	EnterWorldDeny(WorldDenyReason),
 	EnterWorldAccept,
 }
@@ -55,12 +61,15 @@ pub enum ServerResponse {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Component)]
 /// A message that the client sends to the server.
 pub enum ClientMessage {
+	JoinRequest {
+		/// The version of the protocol.
+		protocol_ver: ProtocolVersion,
+	},
 	Query,
 	Ping {
 		/// The time the ping was sent.
 		timestamp: u128,
 	},
-	JoinRequest,
 	ChatMessage(Target, String),
 	EnterWorldRequest(String),
 	PlayerPosition(TilePos),
@@ -90,19 +99,25 @@ pub struct ClientResponseBundle {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Component)]
 pub enum DisconnectReason {
+	ProtocolReject {
+		/// The protocol version that is required
+		required_protocol_ver: ProtocolVersion,
+		/// The required version string
+		required_version_string: String,
+	},
+	EmptyUserdata,
 	ServerFull(String),
 	Kicked(String),
 	Banned(String),
 	Shutdown(String),
-	Other,
+	Other(Option<String>),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Component)]
 pub enum WorldDenyReason {
 	WorldFull(String),
-	Kicked(String),
 	Banned(String),
-	Other,
+	Other(Option<String>),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Component)]

@@ -1,5 +1,6 @@
 use std::fmt;
 use std::fmt::Formatter;
+
 use bevy::prelude::*;
 
 #[derive(Debug)]
@@ -11,7 +12,7 @@ impl fmt::Display for EnvTypeFromStringError {
 	}
 }
 
-#[derive(Debug, Default, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Resource)]
 /// The environment type.
 pub enum EnvType {
 	#[default]

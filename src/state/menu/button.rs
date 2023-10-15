@@ -1,25 +1,32 @@
 use std::ops::Mul;
+
 use bevy::prelude::*;
+
 use crate::state::menu::{HOVERED_BUTTON, NORMAL_BUTTON};
+use crate::util::*;
 
 #[derive(Component)]
-pub struct ButtonColor(pub Color);
+pub struct ButtonColor(pub <Self as NewType>::Inner);
 
-impl From<Color> for ButtonColor {
-	fn from(color: Color) -> Self {
+impl NewType for ButtonColor {
+	type Inner = BackgroundColor;
+}
+
+impl From<<ButtonColor as NewType>::Inner> for ButtonColor {
+	fn from(color: <ButtonColor as NewType>::Inner) -> Self {
 		Self(color)
+	}
+}
+
+impl Into<<ButtonColor as NewType>::Inner> for ButtonColor {
+	fn into(self) -> <ButtonColor as NewType>::Inner {
+		self.0
 	}
 }
 
 impl Into<Color> for ButtonColor {
 	fn into(self) -> Color {
-		self.0
-	}
-}
-
-impl Into<UiColor> for ButtonColor {
-	fn into(self) -> UiColor {
-		self.0.into()
+		self.0.0
 	}
 }
 
@@ -27,7 +34,7 @@ impl Mul for &ButtonColor {
 	type Output = ButtonColor;
 
 	fn mul(self, rhs: Self) -> Self::Output {
-		ButtonColor(Color::rgba(self.0.r() * rhs.0.r(), self.0.g() * rhs.0.g(), self.0.b() * rhs.0.b(), self.0.a() * rhs.0.a()))
+		ButtonColor(Color::rgba(self.0.0.r() * rhs.0.0.r(), self.0.0.g() * rhs.0.0.g(), self.0.0.b() * rhs.0.0.b(), self.0.0.a() * rhs.0.0.a()).into())
 	}
 }
 
@@ -104,22 +111,22 @@ pub struct PreviousButtonProperties {
 /// Handles button style
 pub fn style(
 	mut interaction_query: Query<
-		(&Interaction, &mut PreviousButtonInteraction, &mut UiColor, &ButtonColor, &mut UiImage, &ButtonUpImage, &ButtonDownImage, &mut Style, &mut PreviousButtonBottomPadding),
+		(&Interaction, &mut PreviousButtonInteraction, &mut BackgroundColor, &ButtonColor, &mut UiImage, &ButtonUpImage, &ButtonDownImage, &mut Style, &mut PreviousButtonBottomPadding),
 		(Changed<Interaction>, With<Button>),
 	>,
 ) {
 	for (interaction, mut previous_interaction, mut color, button_color, mut image, button_up, button_down, mut style, mut previous_bottom_padding) in interaction_query.iter_mut() {
 		match *interaction {
-			Interaction::Clicked => {
+			Interaction::Pressed => {
 				*color = (button_color * &HOVERED_BUTTON.into()).into();
 				*image = button_down.0.clone_weak().into();
-				*previous_interaction = Interaction::Clicked.into();
+				*previous_interaction = Interaction::Pressed.into();
 				*previous_bottom_padding = style.padding.bottom.into();
 				style.padding.bottom = Val::Px(0.0);
 			},
 			Interaction::Hovered => {
 				*color = (button_color * &HOVERED_BUTTON.into()).into();
-				if *previous_interaction == Interaction::Clicked.into() {
+				if *previous_interaction == Interaction::Pressed.into() {
 					*image = button_up.0.clone_weak().into();
 					style.padding.bottom = previous_bottom_padding.clone().into();
 				}
@@ -127,7 +134,7 @@ pub fn style(
 			Interaction::None => {
 				*color = (button_color * &NORMAL_BUTTON.into()).into();
 				*image = button_up.0.clone_weak().into();
-				if *previous_interaction == Interaction::Clicked.into() {
+				if *previous_interaction == Interaction::Pressed.into() {
 					style.padding.bottom = previous_bottom_padding.clone().into();
 				}
 				*previous_interaction = Interaction::None.into();

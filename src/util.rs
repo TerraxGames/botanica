@@ -1,4 +1,6 @@
+use bevy::prelude::{Color, Component};
 use bincode::{DefaultOptions, Error, Options};
+use regex::Regex;
 
 pub fn serialize<T>(ser: &T) -> Result<Vec<u8>, Error>
 	where
@@ -42,4 +44,13 @@ pub fn deserialize_trailing<'a, T>(bytes: &'a [u8]) -> Result<T, Error>
 		.with_big_endian()
 		.allow_trailing_bytes()
 		.deserialize(bytes)
+}
+
+pub fn strip_formatting(msg: String) -> String {
+	let re = Regex::new("`.").unwrap();
+	re.replace_all(&*msg, "").to_string()
+}
+
+pub trait NewType {
+	type Inner;
 }

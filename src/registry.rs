@@ -1,11 +1,11 @@
-pub mod tile;
-pub mod def;
-
 use std::collections::HashMap;
 use std::hash::{BuildHasher, Hash, Hasher};
 
 use crate::identifier::Identifier;
 use crate::registry::def::Definition;
+
+pub mod tile;
+pub mod def;
 
 #[derive(Default)]
 pub struct Registry<'a, T> where T : Definition<'a> {

@@ -1,8 +1,8 @@
 use bevy::prelude::*;
-use bevy_egui::EguiContext;
-use iyes_loopless::prelude::*;
+use bevy_egui::{EguiContext, EguiContexts};
 use renet::{RenetClient, RenetServer, ServerEvent};
 use renet_visualizer::{RenetClientVisualizer, RenetServerVisualizer};
+
 use crate::{env, GameState, is_debug};
 
 const VISUALIZER_UPDATE: usize = 200;
@@ -12,18 +12,20 @@ pub struct NetworkingDebugPlugin;
 impl Plugin for NetworkingDebugPlugin {
 	fn build(&self, app: &mut App) {
 		app
-			.add_system(
+			.add_systems(
+				Update,
 				debug_server
+					.run_if(in_state(GameState::InWorld))
 					.run_if(is_debug)
 					.run_if(env::is_server)
-					.run_in_state(GameState::InWorld)
 			)
-			.add_system(
+			.add_systems(
+				Update,
 				debug_client
+					.run_if(in_state(GameState::LoadingWorld))
+					.run_if(in_state(GameState::InWorld))
 					.run_if(is_debug)
 					.run_if(env::is_client)
-					.run_in_state(GameState::LoadingWorld)
-					.run_in_state(GameState::InWorld)
 			);
 	}
 }
@@ -31,14 +33,14 @@ impl Plugin for NetworkingDebugPlugin {
 fn debug_server(
 	mut server: ResMut<RenetServer>,
 	mut visualizer: ResMut<RenetServerVisualizer<VISUALIZER_UPDATE>>,
-	mut gui_ctx: ResMut<EguiContext>,
+	mut contexts: EguiContexts,
 ) {
 	while let Some(event) = server.get_event() {
 		match event {
-			ServerEvent::ClientConnected(client_id, _) => {
+			ServerEvent::ClientConnected { client_id } => {
 				visualizer.add_client(client_id);
 			}
-			ServerEvent::ClientDisconnected(client_id) => {
+			ServerEvent::ClientDisconnected { client_id, .. } => {
 				visualizer.remove_client(client_id);
 			}
 		}
@@ -46,15 +48,15 @@ fn debug_server(
 	
 	visualizer.update(&server);
 	
-	visualizer.show_window(gui_ctx.ctx_mut());
+	visualizer.show_window(contexts.ctx());
 }
 
 fn debug_client(
 	client: Res<RenetClient>,
 	mut visualizer: ResMut<RenetClientVisualizer<VISUALIZER_UPDATE>>,
-	mut gui_ctx: ResMut<EguiContext>,
+	mut contexts: EguiContexts,
 ) {
 	visualizer.add_network_info(client.network_info());
 	
-	visualizer.show_window(gui_ctx.ctx_mut());
+	visualizer.show_window(contexts.ctx());
 }

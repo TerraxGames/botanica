@@ -1,16 +1,16 @@
 use std::fmt;
 use std::fmt::Formatter;
+
 use bevy::prelude::*;
-use bevy_egui::{egui, EguiContext};
+use bevy_egui::{egui, EguiContext, EguiContexts};
 use bevy_egui::egui::style::Margin;
-use iyes_loopless::prelude::*;
-use iyes_loopless::prelude::AppLooplessStateExt;
 use renet::RenetClient;
-use crate::{asset, DEFAULT_LOCALE, despawn_with, from_asset_loc, GameState, LocaleAsset, menu, NAMESPACE, ServerAddressPort, Translatable};
+
+use crate::{asset, DEFAULT_LOCALE, despawn_with, from_asset_loc, GameState, LocaleAsset, menu, NAMESPACE, Translatable};
 use crate::menu::{BACKGROUND, BUTTON_BOTTOM_PADDING, BUTTON_HEIGHT, BUTTON_SCALE, BUTTON_TEXT_SIZE, BUTTON_WIDTH, NORMAL_BUTTON, TEXT_MARGIN};
 use crate::menu::button::{ButtonColor, ButtonDownImage, ButtonImageBundle, ButtonUpImage, PreviousButtonInteraction, PreviousButtonProperties};
-use crate::server::ServerAddress;
 
+#[derive(Resource, Default)]
 struct WorldSelection(String);
 
 pub struct WorldSelectPlugin;
@@ -18,19 +18,17 @@ pub struct WorldSelectPlugin;
 impl Plugin for WorldSelectPlugin {
 	fn build(&self, app: &mut App) {
 		app
-			.add_enter_system(GameState::WorldSelect, setup)
-			.add_exit_system(GameState::WorldSelect, despawn_with::<OnWorldSelect>)
-			.add_system(
-				menu::button::style
-					.run_in_state(GameState::WorldSelect)
-			)
-			.add_system(
-				button_action
-					.run_in_state(GameState::WorldSelect)
-			)
-			.add_system(
-				text_box
-					.run_in_state(GameState::WorldSelect)
+			.init_resource::<WorldSelection>()
+			.add_systems(OnEnter(GameState::WorldSelect), setup)
+			.add_systems(OnExit(GameState::WorldSelect), despawn_with::<OnWorldSelect>)
+			.add_systems(
+				Update,
+				(
+					menu::button::style,
+					button_action,
+					text_box,
+				)
+					.run_if(in_state(GameState::WorldSelect))
 			);
 	}
 }
@@ -65,26 +63,27 @@ fn setup(
 		button_down,
 		..default()
 	};
-	let button_size = Size::new(Val::Px(BUTTON_WIDTH * BUTTON_SCALE), Val::Px(BUTTON_HEIGHT * BUTTON_SCALE));
-	let button_margin = Rect::all(Val::Auto);
+	let button_size = (Val::Px(BUTTON_WIDTH * BUTTON_SCALE), Val::Px(BUTTON_HEIGHT * BUTTON_SCALE));
+	let button_margin = UiRect::all(Val::Auto);
 	let (justify_content, align_items) = (JustifyContent::Center, AlignItems::Center);
-	let button_padding = Rect {
+	let button_padding = UiRect {
 		bottom: Val::Px(BUTTON_BOTTOM_PADDING * BUTTON_SCALE),
 		..default()
 	};
 	
 	// root
 	commands
-		.spawn_bundle(
+		.spawn(
 			ImageBundle {
 				style: Style {
-					size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
+					width: Val::Percent(100.0),
+					height: Val::Percent(100.0),
 					justify_content: JustifyContent::Center,
 					align_items: AlignItems::Center,
 					flex_direction: FlexDirection::ColumnReverse,
 					..default()
 				},
-				color: BACKGROUND.into(),
+				background_color: BACKGROUND.into(),
 				..default()
 			}
 		)
@@ -92,18 +91,15 @@ fn setup(
 		.with_children(|parent| {
 			// select a world
 			parent
-				.spawn_bundle(
+				.spawn(
 					TextBundle {
 						style: Style {
-							margin: Rect::all(TEXT_MARGIN),
+							margin: UiRect::all(TEXT_MARGIN),
 							position_type: PositionType::Absolute,
-							position: Rect {
-								top: Val::Percent(1.0),
-								..default()
-							},
+							top: Val::Percent(1.0),
 							..default()
 						},
-						text: Text::with_section(
+						text: Text::from_section(
 							Translatable::translate_once(
 								asset::namespaced(NAMESPACE, "ui.world_select.text.world_select").as_str(),
 								DEFAULT_LOCALE,
@@ -115,7 +111,6 @@ fn setup(
 								font_size: 45.0,
 								color: Color::WHITE,
 							},
-							default(),
 						),
 						..default()
 					}
@@ -123,26 +118,28 @@ fn setup(
 			
 			// buttons
 			parent
-				.spawn_bundle(
+				.spawn(
 					ImageBundle {
 						style: Style {
-							size: Size::new(Val::Px(512.0), Val::Percent(50.0)),
+							width: Val::Px(512.0),
+							height: Val::Percent(50.0),
 							justify_content: JustifyContent::Center,
 							align_items: AlignItems::Center,
 							flex_direction: FlexDirection::ColumnReverse,
 							..default()
 						},
-						color: Color::NONE.into(),
+						background_color: Color::NONE.into(),
 						..default()
 					}
 				)
 				.with_children(|parent| {
 					// enter button
 					parent
-						.spawn_bundle(
+						.spawn(
 							ButtonBundle {
 								style: Style {
-									size: button_size,
+									width: button_size.0,
+									height: button_size.1,
 									margin: button_margin,
 									justify_content,
 									align_items,
@@ -153,18 +150,18 @@ fn setup(
 							}
 						)
 						.insert(ButtonColor(NORMAL_BUTTON))
-						.insert_bundle(button_image_bundle.clone())
-						.insert_bundle(PreviousButtonProperties::default())
+						.insert(button_image_bundle.clone())
+						.insert(PreviousButtonProperties::default())
 						.insert(ButtonAction::Enter)
 						.with_children(|parent| {
 							parent
-								.spawn_bundle(
+								.spawn(
 									TextBundle {
 										style: Style {
-											margin: Rect::all(TEXT_MARGIN),
+											margin: UiRect::all(TEXT_MARGIN),
 											..default()
 										},
-										text: Text::with_section(
+										text: Text::from_section(
 											Translatable::translate_once(
 												asset::namespaced(NAMESPACE, "ui.world_select.button.enter").as_str(),
 												DEFAULT_LOCALE,
@@ -176,7 +173,6 @@ fn setup(
 												font_size: BUTTON_TEXT_SIZE,
 												color: Color::BLACK,
 											},
-											default()
 										),
 										..default()
 									}
@@ -185,10 +181,11 @@ fn setup(
 					
 					// cancel button
 					parent
-						.spawn_bundle(
+						.spawn(
 							ButtonBundle {
 								style: Style {
-									size: button_size,
+									width: button_size.0,
+									height: button_size.1,
 									margin: button_margin,
 									justify_content,
 									align_items,
@@ -199,18 +196,18 @@ fn setup(
 							}
 						)
 						.insert(ButtonColor(NORMAL_BUTTON))
-						.insert_bundle(button_image_bundle.clone())
-						.insert_bundle(PreviousButtonProperties::default())
+						.insert(button_image_bundle.clone())
+						.insert(PreviousButtonProperties::default())
 						.insert(ButtonAction::Cancel)
 						.with_children(|parent| {
 							parent
-								.spawn_bundle(
+								.spawn(
 									TextBundle {
 										style: Style {
-											margin: Rect::all(TEXT_MARGIN),
+											margin: UiRect::all(TEXT_MARGIN),
 											..default()
 										},
-										text: Text::with_section(
+										text: Text::from_section(
 											Translatable::translate_once(
 												asset::namespaced(NAMESPACE, "ui.world_select.button.cancel").as_str(),
 												DEFAULT_LOCALE,
@@ -222,7 +219,6 @@ fn setup(
 												font_size: BUTTON_TEXT_SIZE,
 												color: Color::BLACK,
 											},
-											default()
 										),
 										..default()
 									}
@@ -233,7 +229,7 @@ fn setup(
 }
 
 fn text_box(
-	mut gui_ctx: ResMut<EguiContext>,
+	mut contexts: EguiContexts,
 	asset_server: Res<AssetServer>,
 	locale_assets: Res<Assets<LocaleAsset>>,
 	mut world_name: ResMut<WorldSelection>,
@@ -243,7 +239,7 @@ fn text_box(
 	
 	let button_size = Vec2::new(BUTTON_WIDTH, BUTTON_HEIGHT) * BUTTON_SCALE;
 	let button_margin = Margin::default();
-	let button_padding = Rect {
+	let button_padding = UiRect {
 		bottom: Val::Px(BUTTON_BOTTOM_PADDING * BUTTON_SCALE),
 		..default()
 	};
@@ -253,7 +249,7 @@ fn text_box(
 		DEFAULT_LOCALE,
 		&asset_server,
 		&locale_assets,
-	)).show(gui_ctx.ctx_mut(), |ui| {
+	)).show(contexts.ctx(), |ui| {
 		ui.text_edit_singleline(&mut world_name.0);
 	});
 }
@@ -264,15 +260,15 @@ fn button_action(
 		(Changed<Interaction>, With<Button>),
 	>,
 	mut client: ResMut<RenetClient>,
-	mut commands: Commands,
+	mut next_state: ResMut<NextState<GameState>>,
 ) {
 	for (interaction, previous_interaction, button_action) in interaction_query.iter() {
-		if *interaction == Interaction::Hovered && *previous_interaction == Interaction::Clicked.into() {
+		if *interaction == Interaction::Hovered && *previous_interaction == Interaction::Pressed.into() {
 			match button_action {
-				ButtonAction::Enter => commands.insert_resource(NextState(GameState::LoadingWorld)),
+				ButtonAction::Enter => next_state.set(GameState::LoadingWorld),
 				ButtonAction::Cancel => {
 					client.disconnect();
-					commands.insert_resource(NextState(GameState::TitleScreen));
+					next_state.set(GameState::TitleScreen);
 				},
 				_ => unimplemented!("{}", button_action),
 			}

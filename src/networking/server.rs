@@ -1,35 +1,42 @@
 use std::collections::HashMap;
 use std::net::UdpSocket;
-use bevy::ecs::component::ComponentId;
+use bevy::ecs::world::unsafe_world_cell::UnsafeWorldCell;
+
 use bevy::prelude::*;
-use iyes_loopless::prelude::*;
-use serde::{Deserialize, Serialize};
 use rand::Rng;
 use rand::rngs::OsRng;
-use renet::{RenetConnectionConfig, RenetServer, ServerEvent};
+use renet::{ConnectionConfig, RenetServer, ServerEvent};
+use renet::transport::{NetcodeServerTransport, ServerAuthentication};
+use serde::{Deserialize, Serialize};
+
 use crate::{env, GameState, mut_component_for_entity, Username, util};
-use crate::networking::{Ping, protocol, strip_formatting};
+use crate::networking::{Ping, protocol};
 use crate::networking::protocol::{ChatMessageBundle, ChatMessageContent, ClientId, ClientMessage, ClientMessageBundle, ClientResponse, ClientResponseBundle, PlayerData};
 use crate::player::{Source, Target};
-use crate::world::{WorldId, Worlds};
+use crate::util::strip_formatting;
+use crate::world::{WorldId, GameWorlds};
 
 pub struct NetworkingPlugin;
 
 impl Plugin for NetworkingPlugin {
 	fn build(&self, app: &mut App) {
 		app
-			.add_enter_system(
-				GameState::ServerLoading,
+			.init_resource::<Players>()
+			.add_systems(
+				OnEnter(GameState::ServerLoading),
 				setup
 					.run_if(env::is_server)
 			)
-			.add_system(
-				server
-					.run_in_state(GameState::ServerLoaded)
+			.add_systems(
+				Update,
+				(
+					server,
+					client_message,
+					client_response,
+				)
+					.run_if(in_state(GameState::ServerLoaded))
 					.run_if(env::is_server)
-			)
-			.add_system(client_message)
-			.add_system(client_response);
+			);
 	}
 }
 
@@ -51,7 +58,7 @@ impl Default for ServerPort {
 	}
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Resource)]
 pub struct ServerConfig {
 	pub address: ServerAddress,
 	pub port: ServerPort,
@@ -68,7 +75,7 @@ impl Default for ServerConfig {
 	}
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Resource)]
 pub struct Players(pub HashMap<u64, (PlayerData, Option<WorldId>, Option<&'static Entity>)>);
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Component)]
@@ -77,9 +84,10 @@ pub struct ServerPing(pub Ping);
 fn setup(
 	server_config: Res<ServerConfig>,
 	mut commands: Commands,
+	mut next_state: ResMut<NextState<GameState>>,
 	mut time: ResMut<Time>,
 ) {
-	let connection_config = RenetConnectionConfig::default();
+	let connection_config = ConnectionConfig::default();
 	
 	time.update();
 	
@@ -88,46 +96,58 @@ fn setup(
 	let mut rng = OsRng::default();
 	let private_key = &mut [0u8; 32];
 	rng.fill(private_key);
+	let authentication = ServerAuthentication::Secure { private_key: *private_key };
 	
-	let server_config = renet::ServerConfig {
+	let server_config = renet::transport::ServerConfig {
 		max_clients: server_config.max_clients,
 		protocol_id: protocol::PROTOCOL_ID,
 		public_addr: address.parse().expect(&format!("Failed to parse address \"{}\"", address)),
-		private_key: *private_key,
+		authentication,
 	};
 	
 	let socket = UdpSocket::bind(&address).expect(&format!("Failed to bind to address \"{}\"", address));
-	let current_time = time.time_since_startup();
+	let current_time = time.elapsed();
 	
-	let server = RenetServer::new(current_time, server_config, connection_config, socket).expect("Failed to create server");
+	let server = RenetServer::new(connection_config);
+	let transport = NetcodeServerTransport::new(current_time, server_config, socket).expect("Failed to create transport");
 	
 	commands.insert_resource(server);
-	commands.init_resource::<Players>();
-	commands.insert_resource(NextState(GameState::ServerLoaded));
+	commands.insert_resource(transport);
+	println!("Loaded server! Listening @ {}", address);
+	next_state.set(GameState::ServerLoaded);
 }
 
 fn server(
 	mut server: ResMut<RenetServer>,
+	mut transport: ResMut<NetcodeServerTransport>,
 	mut time: ResMut<Time>,
 	mut commands: Commands,
 	mut players: ResMut<Players>,
 ) {
 	time.update();
 	
-	let current_time = time.time_since_startup();
+	let current_time = time.elapsed();
 	
-	server.update(current_time).expect("Failed to update server");
+	server.update(current_time);
+	transport.update(current_time, &mut server).expect("Failed to update NetcodeServerTransport");
 	
 	while let Some(event) = server.get_event() {
 		match event {
-			ServerEvent::ClientConnected(id, user_data) => {
-				let username = Username::from_user_data(&*user_data);
-				players.0.insert(id, (PlayerData { username: username.clone() }, None, None));
-				println!("Player {} (ID {:x}) joined", username, id);
+			ServerEvent::ClientConnected { client_id: id } => {
+				if let Some(user_data) = transport.user_data(id) {
+					let username = Username::from_user_data(&user_data);
+					players.0.insert(id, (PlayerData { username: username.clone() }, None, None));
+					println!("Player {} (ID {:x}) joined", username, id);
+				} else {
+					println!("Player (ID {:x}) attempted to join, but no user data was sent!", id);
+					let message = util::serialize(&protocol::Message::ServerResponse(protocol::ServerResponse::JoinDeny(protocol::DisconnectReason::EmptyUserdata))).expect("Failed to serialize");
+					server.send_message(id, 0, message);
+					server.disconnect(id);
+				}
 			}
-			ServerEvent::ClientDisconnected(id) => {
+			ServerEvent::ClientDisconnected { client_id: id, reason } => {
 				let (player, _, _) = players.0.remove(&id).unwrap();
-				println!("Player {} (ID {:x}) disconnected", player.username, id);
+				println!("Player {} (ID {:x}) disconnected: {}", player.username, id, reason);
 			}
 		}
 	}
@@ -139,10 +159,10 @@ fn server(
 				if let Ok(message) = message {
 					match message {
 						protocol::Message::ClientMessage(message) => {
-							commands.spawn_bundle(ClientMessageBundle { id: ClientId(client_id), message });
+							commands.spawn(ClientMessageBundle { id: ClientId(client_id), message });
 						}
 						protocol::Message::ClientResponse(response) => {
-							commands.spawn_bundle(ClientResponseBundle { id: ClientId(client_id), response });
+							commands.spawn(ClientResponseBundle { id: ClientId(client_id), response });
 						}
 						_ => warn!("Received server message from client ({}): {:?}", client_id, message),
 					}
@@ -155,7 +175,7 @@ fn server(
 fn client_message(
 	message_query: Query<(&ClientId, &ClientMessage)>,
 	mut server: ResMut<RenetServer>,
-	mut worlds: ResMut<Worlds>,
+	mut worlds: ResMut<GameWorlds>,
 	mut players: ResMut<Players>,
 ) {
 	for (client_id, message) in message_query.iter() {
@@ -168,7 +188,7 @@ fn client_message(
 				let message = util::serialize(&protocol::Message::ServerMessage(protocol::ServerMessage::PlayerPosition(*client_id, *position))).unwrap();
 				server.send_message(client_id.0, 1, message);
 			}
-			ClientMessage::EnterWorldRequest(world_name) => {
+			ClientMessage::EnterWorldRequest(_world_name) => {
 				let response = protocol::ServerResponse::EnterWorldAccept; // todo: deny joining worlds?
 				let message = util::serialize(&protocol::Message::ServerResponse(response)).unwrap();
 				server.send_message(client_id.0, 0, message);
@@ -191,9 +211,8 @@ fn client_response(
 	message_query: Query<(&ClientId, &ClientResponse)>,
 	mut server: ResMut<RenetServer>,
 	mut commands: Commands,
-	mut world: ResMut<World>,
 	mut time: ResMut<Time>,
-	mut worlds: ResMut<Worlds>,
+	mut worlds: ResMut<GameWorlds>,
 	mut players: ResMut<Players>,
 ) {
 	time.update();
@@ -201,11 +220,11 @@ fn client_response(
 	for (client_id, response) in message_query.iter() {
 		match response {
 			ClientResponse::PingAck { timestamp } => {
-				let timestamp = time.time_since_startup().as_millis();
+				let timestamp = time.elapsed().as_millis();
 				let (_, _, entity) = players.0.get(&client_id.0).unwrap();
 				let entity = entity.unwrap();
-				// SAFE: only mutable reference
-				let ping = unsafe { mut_component_for_entity::<ServerPing>(entity, &world) }.unwrap();
+				commands.entity(*entity).log_components();
+				// todo: finish client response
 			}
 			_ => {}
 		}
@@ -228,14 +247,14 @@ pub fn send_chat(
 	}));
 	match target {
 		Target::Player(id) => {
-			server.send_message(id, 0, util::serialize(&message).unwrap());
+			server.send_message(id.0, 0, util::serialize(&message).unwrap());
 		}
 		Target::Players(players) => {
 			for id in players {
-				server.send_message(id, 0, util::serialize(&message).unwrap());
+				server.send_message(id.0, 0, util::serialize(&message).unwrap());
 			}
 		}
-		Target::World => {
+		Target::World => { // todo: send chat message to world
 		}
 		Target::All => {
 			server.broadcast_message(0, util::serialize(&message).unwrap());

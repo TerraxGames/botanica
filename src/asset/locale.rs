@@ -1,10 +1,11 @@
 use std::collections::HashMap;
+
 use anyhow::Error;
 use bevy::asset::{AssetLoader, BoxedFuture, LoadContext, LoadedAsset};
+use bevy::reflect::{TypePath, TypeUuid};
 use serde::Deserialize;
-use bevy::reflect::TypeUuid;
 
-#[derive(Debug, Clone, Deserialize, TypeUuid)]
+#[derive(Debug, Clone, Deserialize, TypeUuid, TypePath)]
 #[uuid = "57ed7713-25b9-4f84-a961-238acca10d96"]
 pub struct LocaleAsset {
 	locale: HashMap<String, String>,

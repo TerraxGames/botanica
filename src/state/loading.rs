@@ -1,6 +1,6 @@
 use bevy::asset::LoadState;
 use bevy::prelude::*;
-use iyes_loopless::prelude::*;
+
 use crate::{EnvType, from_asset_loc, GameState, NAMESPACE};
 
 pub struct LoadingPlugin;
@@ -8,16 +8,16 @@ pub struct LoadingPlugin;
 impl Plugin for LoadingPlugin {
 	fn build(&self, app: &mut App) {
 		app
-			.add_loopless_state(GameState::Loading)
-			.add_enter_system(GameState::Loading, load_assets)
-			.add_system(
+			.add_systems(OnEnter(GameState::Loading), load_assets)
+			.add_systems(
+				Update,
 				check_assets_ready
-					.run_in_state(GameState::Loading)
+					.run_if(in_state(GameState::Loading))
 			);
 	}
 }
 
-#[derive(Default)]
+#[derive(Default, Resource)]
 pub struct AssetsLoading {
 	assets: Vec<HandleUntyped>,
 	finished: bool,
@@ -50,35 +50,35 @@ fn load_assets(
 }
 
 fn check_assets_ready(
-	mut commands: Commands,
+	mut next_state: ResMut<NextState<GameState>>,
 	asset_server: Res<AssetServer>,
 	mut loading: ResMut<AssetsLoading>,
 	env: Res<EnvType>,
 ) {
 	for handle in loading.assets.iter() {
-		let load_state = asset_server.get_load_state(handle.id);
+		let load_state = asset_server.get_load_state(handle.id());
 		match load_state {
 			LoadState::Failed => {
-				let path = asset_server.get_handle_path(handle.id).expect("Failed to get path of asset handle");
+				let path = asset_server.get_handle_path(handle.id()).expect("Failed to get path of asset handle");
 				warn!("Failed to load asset at \"{:?}\"", path.path());
 			},
 			_ => {},
 		}
 	}
 	
-	match asset_server.get_group_load_state(loading.assets.iter().map(|h| h.id)) {
+	match asset_server.get_group_load_state(loading.assets.iter().map(|handle| handle.id())) {
 		LoadState::Loaded => {
 			println!("Assets loaded.");
 			
 			loading.finished = true;
 			
-			let next_state = if *env == EnvType::Client {
-				NextState(GameState::BevySplash)
-			} else {
-				NextState(GameState::LoadingWorld)
-			};
-			
-			commands.insert_resource(next_state)
+			next_state.set(
+				if *env == EnvType::Client {
+					GameState::BevySplash
+				} else {
+					GameState::ServerLoading
+				}
+			)
 		},
 		_ => {},
 	}

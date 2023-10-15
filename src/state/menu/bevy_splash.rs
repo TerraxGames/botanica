@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use iyes_loopless::prelude::*;
+
 use crate::{asset, DEFAULT_LOCALE, despawn_with, from_asset_loc, GameState, LocaleAsset, NAMESPACE, Translatable};
 use crate::state::menu::{BACKGROUND, TEXT_MARGIN};
 
@@ -16,11 +16,12 @@ pub struct BevySplashPlugin;
 impl Plugin for BevySplashPlugin {
 	fn build(&self, app: &mut App) {
 		app
-			.add_enter_system(GameState::BevySplash, setup)
-			.add_exit_system(GameState::BevySplash, despawn_with::<OnBevySplash>)
-			.add_system(
+			.add_systems(OnEnter(GameState::BevySplash), setup)
+			.add_systems(OnExit(GameState::BevySplash), despawn_with::<OnBevySplash>)
+			.add_systems(
+				Update,
 				check_timer_up
-					.run_in_state(GameState::BevySplash)
+					.run_if(in_state(GameState::BevySplash))
 			);
 	}
 }
@@ -41,44 +42,46 @@ fn setup(
 	
 	// root
 	commands
-		.spawn_bundle(
+		.spawn(
 			ImageBundle {
 				style: Style {
-					size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
+					width: Val::Percent(100.0),
+					height: Val::Percent(100.0),
 					justify_content: JustifyContent::Center,
 					align_items: AlignItems::Center,
 					flex_direction: FlexDirection::ColumnReverse,
 					..default()
 				},
 				// background color
-				color: BACKGROUND.into(),
+				background_color: BACKGROUND.into(),
 				..default()
 			}
 		)
 		.insert(OnBevySplash)
-		.insert(BevySplashTimer(Timer::from_seconds(BEVY_SPLASH_TIME, false)))
+		.insert(BevySplashTimer(Timer::from_seconds(BEVY_SPLASH_TIME, TimerMode::Once)))
 		.with_children(|parent| {
 			// logo
 			parent
-				.spawn_bundle(
+				.spawn(
 					ImageBundle {
 						style: Style {
-							size: Size::new(Val::Px(256.0), Val::Px(256.0)),
+							width: Val::Px(256.0),
+							height: Val::Px(256.0),
 							..default()
 						},
-						image: UiImage(bevy_logo),
+						image: bevy_logo.into(),
 						..default()
 					}
 				);
 			// "made with" text
 			parent
-				.spawn_bundle(
+				.spawn(
 					TextBundle {
 						style: Style {
-							margin: Rect::all(TEXT_MARGIN),
+							margin: UiRect::all(TEXT_MARGIN),
 							..default()
 						},
-						text: Text::with_section(
+						text: Text::from_section(
 							Translatable::translate_once(
 								asset::namespaced(NAMESPACE, "ui.bevy_splash.text.made_with").as_str(),
 								DEFAULT_LOCALE,
@@ -90,7 +93,6 @@ fn setup(
 								font_size: 45.0,
 								color: Color::WHITE,
 							},
-							default(),
 						),
 						..default()
 					}
@@ -101,12 +103,13 @@ fn setup(
 fn check_timer_up(
 	mut commands: Commands,
 	mut timer_query: Query<(&mut BevySplashTimer)>,
+	mut next_state: ResMut<NextState<GameState>>,
 	time: Res<Time>,
 ) {
 	for mut timer in timer_query.iter_mut() {
 		timer.0.tick(time.delta());
 		if timer.0.finished() {
-			commands.insert_resource(NextState(GameState::TitleScreen))
+			next_state.set(GameState::TitleScreen)
 		}
 	}
 }

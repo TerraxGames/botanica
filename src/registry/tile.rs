@@ -1,10 +1,12 @@
+use bevy::prelude::*;
+use serde::{Deserialize, Serialize};
+
 use crate::i18n::Translatable;
 use crate::identifier::Identifier;
 use crate::Registry;
 use crate::registry::def::Definition;
-use serde::{Serialize, Deserialize};
-use bevy::prelude::*;
 
+#[derive(Resource)]
 pub struct TileRegistry<'a>(pub Registry<'a, TileDef<'a>>);
 
 impl<'a> Default for TileRegistry<'a> {

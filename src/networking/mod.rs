@@ -1,9 +1,9 @@
 use std::fmt;
 use std::fmt::Formatter;
-use regex::Regex;
-use renet::NETCODE_USER_DATA_BYTES;
-use serde::{Serialize, Deserialize};
+
 use bevy::prelude::*;
+use renet::transport::NETCODE_USER_DATA_BYTES;
+use serde::{Deserialize, Serialize};
 
 pub mod protocol;
 pub mod client;
@@ -12,10 +12,10 @@ pub mod debug;
 
 pub const USERNAME_BYTES: usize = 32;
 
-#[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Component)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Component, Resource)]
 pub struct Ping(pub u32);
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Component)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Component, Resource)]
 pub struct Username(pub String);
 
 impl fmt::Display for Username {
@@ -29,28 +29,21 @@ impl Username {
 		let mut user_data = [0u8; NETCODE_USER_DATA_BYTES];
 		
 		if self.0.len() > USERNAME_BYTES {
-			panic!("Username too big (maximum is {}, found {})", USERNAME_BYTES, self.0.len());
+			panic!("Username too big (maximum is length {}, found {})", USERNAME_BYTES, self.0.len()); // fixme: don't panic please?
 		}
 		
-		user_data[0..4].copy_from_slice(&(self.0.len() as u32).to_le_bytes());
-		user_data[4..self.0.len() + 4].copy_from_slice(self.0.as_bytes());
+		user_data[0] = self.0.len() as u8;
+		user_data[1..self.0.len() + 1].copy_from_slice(self.0.as_bytes());
 		
 		user_data
 	}
 	
 	pub fn from_user_data(user_data: &[u8; NETCODE_USER_DATA_BYTES]) -> Self {
-		let mut buf = [0u8; 4];
-		buf.copy_from_slice(&user_data[0..4]);
-		let len = u32::from_le_bytes(buf) as usize;
+		let len = user_data[0] as usize;
 		
 		let mut buf = Vec::new();
-		buf.extend_from_slice(&user_data[4..len + 4]);
+		buf.extend_from_slice(&user_data[1..len + 1]);
 		
 		Self(String::from_utf8(buf).unwrap())
 	}
-}
-
-pub fn strip_formatting(msg: String) -> String {
-	let re = Regex::new("`.").unwrap();
-	re.replace_all(&*msg, "").to_string()
 }

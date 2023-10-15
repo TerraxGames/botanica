@@ -1,7 +1,7 @@
 use bevy::prelude::{Assets, AssetServer, Handle, Res};
-use crate::asset::{from_asset_loc, from_asset_loc_raw, parse_namespaced};
+
+use crate::asset::parse_namespaced;
 use crate::asset::locale::LocaleAsset;
-use crate::NAMESPACE;
 
 pub struct Translatable {
 	key: String,
@@ -54,12 +54,12 @@ impl Translatable {
 		key: &str,
 		locale: &str,
 		asset_server: &Res<AssetServer>,
-		locale_assets: &Res<Assets<LocaleAsset>>,
+		locale_assets: &Assets<LocaleAsset>,
 	) -> String {
 		let (namespace, key) = parse_namespaced(key);
 		let location = format!("{}/locale/{}.locale.ron", namespace, locale);
 		let handle: Handle<LocaleAsset> = asset_server.get_handle(location.as_str());
-		let locale = locale_assets.get(handle).expect(format!("Failed to find locale \"{}\" ({}): not loaded.", locale, location).as_str()).clone();
+		let locale = locale_assets.get(&handle).expect(format!("Failed to find locale \"{}\" ({}): not loaded.", locale, location).as_str()).clone();
 		locale.translate(key)
 	}
 }

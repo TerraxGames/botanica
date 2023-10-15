@@ -1,3 +1,28 @@
+use std::any::TypeId;
+use std::ops::Range;
+
+use bevy::asset::{AssetIo, AssetIoError};
+use bevy::ecs::archetype::Archetypes;
+use bevy::ecs::component::ComponentId;
+use bevy::prelude::*;
+use bevy_egui::egui::TextBuffer;
+use bevy_egui::EguiPlugin;
+use serde::{Deserialize, Serialize};
+
+use state::*;
+
+use crate::asset::from_asset_loc;
+use crate::asset::locale::{LocaleAsset, LocaleAssetLoader};
+use crate::env::EnvType;
+use crate::i18n::Translatable;
+use crate::identifier::Identifier;
+use crate::networking::{client, server, Username};
+use crate::networking::debug::NetworkingDebugPlugin;
+use crate::registry::Registry;
+use crate::registry::tile::TileRegistry;
+use crate::server::{ServerAddress, ServerConfig, ServerPort};
+use crate::world::GameWorlds;
+
 pub mod registry;
 pub mod identifier;
 pub mod tile;
@@ -12,35 +37,16 @@ pub mod world;
 pub mod creature;
 mod state;
 
-use std::any::TypeId;
-use bevy::asset::{AssetIo, AssetIoError};
-use bevy::ecs::archetype::Archetypes;
-use bevy::ecs::component::ComponentId;
-use bevy::prelude::*;
-use bevy_egui::EguiPlugin;
-use iyes_loopless::prelude::*;
-use crate::asset::from_asset_loc;
-use crate::asset::locale::{LocaleAsset, LocaleAssetLoader};
-use crate::env::EnvType;
-use crate::i18n::Translatable;
-use crate::identifier::Identifier;
-use crate::registry::Registry;
-use crate::registry::tile::TileRegistry;
-use state::*;
-use crate::networking::debug::NetworkingDebugPlugin;
-use crate::networking::{client, server, Username};
-use crate::server::{ServerAddress, ServerConfig, ServerPort};
-use serde::{Serialize, Deserialize};
-
 pub const NAMESPACE: &'static str = "botanica";
 
 pub const DEFAULT_LOCALE: &'static str = "en_us";
 
 /// Whether the dedicated server is headless.
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Resource)]
 pub struct Headless(bool);
 
 /// fixme: [`ServerAddressPort::default`]
+#[derive(Resource)]
 pub struct ServerAddressPort(pub String, pub u16);
 
 impl Default for ServerAddressPort {
@@ -51,11 +57,11 @@ impl Default for ServerAddressPort {
 	}
 }
 
-pub fn is_headless(headless: Res<Headless>) -> bool {
+pub fn is_headless(headless: Headless) -> bool {
 	headless.0
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, States)]
 pub enum GameState {
 	Loading,
 	/// The splash screen displaying "made with Bevy".
@@ -70,6 +76,12 @@ pub enum GameState {
 	ServerLoaded,
 }
 
+impl Default for GameState {
+	fn default() -> Self {
+		Self::Loading
+	}
+}
+
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Component)]
 pub struct TilePos(pub u64, pub u64);
 
@@ -78,39 +90,44 @@ pub struct Position(pub f64, pub f64);
 
 pub fn main() {
 	let env = EnvType::try_from(std::env::var("ENVIRONMENT").unwrap_or("client".to_string())).unwrap(); // todo: force EnvType environment variable
-	let headless = Headless(std::env::args().find(|s| s.as_str() == "--headless").is_some());
+	let headless = Headless(std::env::args().find(|s| s.as_str() == "--headless").is_some()); // todo: finish headless server feature
 	let username = Username(std::env::args().find(|s| s.as_str().starts_with("--username=")).unwrap_or("Player".to_owned()));
 	
 	let mut app = App::new();
 	
 	app
+		.add_state::<GameState>()
 		.add_plugins(DefaultPlugins)
-		.add_plugin(EguiPlugin)
-		.add_plugin(NetworkingDebugPlugin)
+		.add_plugins((EguiPlugin, NetworkingDebugPlugin))
 		.insert_resource(env)
 		.insert_resource(headless)
 		.init_resource::<loading::AssetsLoading>()
 		.init_resource::<TileRegistry>() // todo: tile registry and other registries
 		.add_asset::<LocaleAsset>()
 		.init_asset_loader::<LocaleAssetLoader>()
-		.add_startup_system(
+		.add_systems(
+			Startup,
 			menu::init_ui
-				.run_if(env::is_client)
 		)
-		.add_plugin(loading::LoadingPlugin)
-		.add_plugin(menu::bevy_splash::BevySplashPlugin)
-		.add_plugin(menu::title_screen::TitleScreenPlugin)
-		.add_plugin(menu::world_select::WorldSelectPlugin)
-		.add_plugin(menu::server_select::ServerSelectPlugin);
+		.add_plugins(
+			(
+				loading::LoadingPlugin,
+				menu::bevy_splash::BevySplashPlugin,
+				menu::title_screen::TitleScreenPlugin,
+				menu::world_select::WorldSelectPlugin,
+				menu::server_select::ServerSelectPlugin
+			)
+		);
 	
 	if env == EnvType::Client {
 		app
-			.add_plugin(client::NetworkingPlugin)
+			.add_plugins(client::NetworkingPlugin)
 			.insert_resource(username)
 			.init_resource::<ServerAddressPort>();
 	} else {
 		app
-			.add_plugin(server::NetworkingPlugin)
+			.add_plugins(server::NetworkingPlugin)
+			.init_resource::<GameWorlds>()
 			.init_resource::<ServerConfig>();
 	}
 	
@@ -139,7 +156,7 @@ pub fn get_components_for_entity<'a>(
 	archetypes: &'a Archetypes,
 ) -> Option<impl Iterator<Item = ComponentId> + 'a> {
 	for archetype in archetypes.iter() {
-		if archetype.entities().contains(entity) {
+		if archetype.entities().iter().any(|e| &e.entity() == entity) {
 			return Some(archetype.components());
 		}
 	}
@@ -162,10 +179,10 @@ pub unsafe fn mut_component_for_entity<'a, C>(
 		if info.type_id().unwrap() == TypeId::of::<C>() {
 			for table in world.storages().tables.iter() {
 				if let Some(column) = table.get_column(component_id) {
-					// SAFE: the caller must guarantee that rust mutability rules aren't violated
-					let mut ptr = unsafe { column.get_data_ptr() }.cast::<C>();
+					// SAFETY: the caller must guarantee that rust mutability rules aren't violated
+					let mut ptr = column.get_data_ptr().as_ptr().cast::<C>();
 					let val = unsafe { ptr.as_mut() };
-					component = Some(val);
+					component = val;
 				}
 			}
 		}

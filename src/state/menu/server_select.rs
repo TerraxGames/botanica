@@ -1,33 +1,37 @@
 use std::fmt;
 use std::fmt::Formatter;
+
 use bevy::prelude::*;
-use bevy_egui::{egui, EguiContext};
+use bevy_egui::{egui, EguiContext, EguiContexts};
 use bevy_egui::egui::style::Margin;
-use iyes_loopless::prelude::*;
-use iyes_loopless::prelude::AppLooplessStateExt;
+use futures::task::SpawnExt;
+
+// jesus fucking christ
 use crate::{asset, DEFAULT_LOCALE, despawn_with, from_asset_loc, GameState, LocaleAsset, menu, NAMESPACE, ServerAddressPort, Translatable};
 use crate::menu::{BACKGROUND, BUTTON_BOTTOM_PADDING, BUTTON_HEIGHT, BUTTON_SCALE, BUTTON_TEXT_SIZE, BUTTON_WIDTH, NORMAL_BUTTON, TEXT_MARGIN};
 use crate::menu::button::{ButtonColor, ButtonDownImage, ButtonImageBundle, ButtonUpImage, PreviousButtonInteraction, PreviousButtonProperties};
-use crate::server::ServerAddress;
 
 pub struct ServerSelectPlugin;
 
 impl Plugin for ServerSelectPlugin {
 	fn build(&self, app: &mut App) {
 		app
-			.add_enter_system(GameState::ServerSelect, setup)
-			.add_exit_system(GameState::ServerSelect, despawn_with::<OnServerSelect>)
-			.add_system(
+			.add_systems(OnEnter(GameState::ServerSelect), setup)
+			.add_systems(OnExit(GameState::ServerSelect), despawn_with::<OnServerSelect>)
+			.add_systems(
+				Update,
 				menu::button::style
-					.run_in_state(GameState::ServerSelect)
+					.run_if(in_state(GameState::ServerSelect))
 			)
-			.add_system(
+			.add_systems(
+				Update,
 				button_action
-					.run_in_state(GameState::ServerSelect)
+					.run_if(in_state(GameState::ServerSelect))
 			)
-			.add_system(
+			.add_systems(
+				Update,
 				text_box
-					.run_in_state(GameState::ServerSelect)
+					.run_if(in_state(GameState::ServerSelect))
 			);
 	}
 }
@@ -62,26 +66,27 @@ fn setup(
 		button_down,
 		..default()
 	};
-	let button_size = Size::new(Val::Px(BUTTON_WIDTH * BUTTON_SCALE), Val::Px(BUTTON_HEIGHT * BUTTON_SCALE));
-	let button_margin = Rect::all(Val::Auto);
+	let button_size = (Val::Px(BUTTON_WIDTH * BUTTON_SCALE), Val::Px(BUTTON_HEIGHT * BUTTON_SCALE));
+	let button_margin = UiRect::all(Val::Auto);
 	let (justify_content, align_items) = (JustifyContent::Center, AlignItems::Center);
-	let button_padding = Rect {
+	let button_padding = UiRect {
 		bottom: Val::Px(BUTTON_BOTTOM_PADDING * BUTTON_SCALE),
 		..default()
 	};
 	
 	// root
 	commands
-		.spawn_bundle(
+		.spawn(
 			ImageBundle {
 				style: Style {
-					size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
+					width: Val::Percent(100.0),
+					height: Val::Percent(100.0),
 					justify_content: JustifyContent::Center,
 					align_items: AlignItems::Center,
 					flex_direction: FlexDirection::ColumnReverse,
 					..default()
 				},
-				color: BACKGROUND.into(),
+				background_color: BACKGROUND.into(),
 				..default()
 			}
 		)
@@ -89,18 +94,15 @@ fn setup(
 		.with_children(|parent| {
 			// select a server
 			parent
-				.spawn_bundle(
+				.spawn(
 					TextBundle {
 						style: Style {
-							margin: Rect::all(TEXT_MARGIN),
+							margin: UiRect::all(TEXT_MARGIN),
 							position_type: PositionType::Absolute,
-							position: Rect {
-								top: Val::Percent(1.0),
-								..default()
-							},
+							top: Val::Percent(1.0),
 							..default()
 						},
-						text: Text::with_section(
+						text: Text::from_section(
 							Translatable::translate_once(
 								asset::namespaced(NAMESPACE, "ui.server_select.text.select_server").as_str(),
 								DEFAULT_LOCALE,
@@ -112,7 +114,6 @@ fn setup(
 								font_size: 45.0,
 								color: Color::WHITE,
 							},
-							default(),
 						),
 						..default()
 					}
@@ -120,26 +121,28 @@ fn setup(
 			
 			// buttons
 			parent
-				.spawn_bundle(
+				.spawn(
 					ImageBundle {
 						style: Style {
-							size: Size::new(Val::Px(512.0), Val::Percent(50.0)),
+							width: Val::Px(512.0),
+							height: Val::Percent(50.0),
 							justify_content: JustifyContent::Center,
 							align_items: AlignItems::Center,
 							flex_direction: FlexDirection::ColumnReverse,
 							..default()
 						},
-						color: Color::NONE.into(),
+						background_color: Color::NONE.into(),
 						..default()
 					}
 				)
 				.with_children(|parent| {
 					// connect button
 					parent
-						.spawn_bundle(
+						.spawn(
 							ButtonBundle {
 								style: Style {
-									size: button_size,
+									width: button_size.0,
+									height: button_size.1,
 									margin: button_margin,
 									justify_content,
 									align_items,
@@ -150,18 +153,18 @@ fn setup(
 							}
 						)
 						.insert(ButtonColor(NORMAL_BUTTON))
-						.insert_bundle(button_image_bundle.clone())
-						.insert_bundle(PreviousButtonProperties::default())
+						.insert(button_image_bundle.clone())
+						.insert(PreviousButtonProperties::default())
 						.insert(ButtonAction::Connect)
 						.with_children(|parent| {
 							parent
-								.spawn_bundle(
+								.spawn(
 									TextBundle {
 										style: Style {
-											margin: Rect::all(TEXT_MARGIN),
+											margin: UiRect::all(TEXT_MARGIN),
 											..default()
 										},
-										text: Text::with_section(
+										text: Text::from_section(
 											Translatable::translate_once(
 												asset::namespaced(NAMESPACE, "ui.server_select.button.connect").as_str(),
 												DEFAULT_LOCALE,
@@ -173,7 +176,6 @@ fn setup(
 												font_size: BUTTON_TEXT_SIZE,
 												color: Color::BLACK,
 											},
-											default()
 										),
 										..default()
 									}
@@ -182,10 +184,11 @@ fn setup(
 					
 					// back button
 					parent
-						.spawn_bundle(
+						.spawn(
 							ButtonBundle {
 								style: Style {
-									size: button_size,
+									width: button_size.0,
+									height: button_size.1,
 									margin: button_margin,
 									justify_content,
 									align_items,
@@ -196,18 +199,18 @@ fn setup(
 							}
 						)
 						.insert(ButtonColor(NORMAL_BUTTON))
-						.insert_bundle(button_image_bundle.clone())
-						.insert_bundle(PreviousButtonProperties::default())
+						.insert(button_image_bundle.clone())
+						.insert(PreviousButtonProperties::default())
 						.insert(ButtonAction::Back)
 						.with_children(|parent| {
 							parent
-								.spawn_bundle(
+								.spawn(
 									TextBundle {
 										style: Style {
-											margin: Rect::all(TEXT_MARGIN),
+											margin: UiRect::all(TEXT_MARGIN),
 											..default()
 										},
-										text: Text::with_section(
+										text: Text::from_section(
 											Translatable::translate_once(
 												asset::namespaced(NAMESPACE, "ui.server_select.button.back").as_str(),
 												DEFAULT_LOCALE,
@@ -219,7 +222,6 @@ fn setup(
 												font_size: BUTTON_TEXT_SIZE,
 												color: Color::BLACK,
 											},
-											default()
 										),
 										..default()
 									}
@@ -230,7 +232,7 @@ fn setup(
 }
 
 fn text_box(
-	mut gui_ctx: ResMut<EguiContext>,
+	mut gui_ctx: EguiContexts,
 	asset_server: Res<AssetServer>,
 	locale_assets: Res<Assets<LocaleAsset>>,
 	mut server_address: ResMut<ServerAddressPort>,
@@ -240,7 +242,7 @@ fn text_box(
 	
 	let button_size = Vec2::new(BUTTON_WIDTH, BUTTON_HEIGHT) * BUTTON_SCALE;
 	let button_margin = Margin::default();
-	let button_padding = Rect {
+	let button_padding = UiRect {
 		bottom: Val::Px(BUTTON_BOTTOM_PADDING * BUTTON_SCALE),
 		..default()
 	};
@@ -250,7 +252,7 @@ fn text_box(
 		DEFAULT_LOCALE,
 		&asset_server,
 		&locale_assets,
-	)).show(gui_ctx.ctx_mut(), |ui| {
+	)).show(gui_ctx.ctx(), |ui| {
 		ui.text_edit_singleline(&mut server_address.0);
 	});
 }
@@ -260,13 +262,13 @@ fn button_action(
 		(&Interaction, &PreviousButtonInteraction, &ButtonAction),
 		(Changed<Interaction>, With<Button>),
 	>,
-	mut commands: Commands,
+	mut next_state: ResMut<NextState<GameState>>,
 ) {
 	for (interaction, previous_interaction, button_action) in interaction_query.iter() {
-		if *interaction == Interaction::Hovered && *previous_interaction == Interaction::Clicked.into() {
+		if *interaction == Interaction::Hovered && *previous_interaction == Interaction::Pressed.into() {
 			match button_action {
-				ButtonAction::Connect => commands.insert_resource(NextState(GameState::ClientConnecting)),
-				ButtonAction::Back => commands.insert_resource(NextState(GameState::TitleScreen)),
+				ButtonAction::Connect => next_state.set(GameState::ClientConnecting),
+				ButtonAction::Back => next_state.set(GameState::TitleScreen),
 				_ => unimplemented!("{}", button_action),
 			}
 		}
