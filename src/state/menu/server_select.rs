@@ -2,7 +2,7 @@ use std::fmt;
 use std::fmt::Formatter;
 
 use bevy::prelude::*;
-use bevy_egui::{egui, EguiContext, EguiContexts};
+use bevy_egui::{egui, EguiContexts};
 use bevy_egui::egui::style::Margin;
 use futures::task::SpawnExt;
 

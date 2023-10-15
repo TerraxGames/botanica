@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::net::UdpSocket;
-use bevy::ecs::world::unsafe_world_cell::UnsafeWorldCell;
 
 use bevy::prelude::*;
 use rand::Rng;
@@ -9,12 +8,12 @@ use renet::{ConnectionConfig, RenetServer, ServerEvent};
 use renet::transport::{NetcodeServerTransport, ServerAuthentication};
 use serde::{Deserialize, Serialize};
 
-use crate::{env, GameState, mut_component_for_entity, Username, util};
+use crate::{env, GameState, Username, util};
 use crate::networking::{Ping, protocol};
 use crate::networking::protocol::{ChatMessageBundle, ChatMessageContent, ClientId, ClientMessage, ClientMessageBundle, ClientResponse, ClientResponseBundle, PlayerData};
 use crate::player::{Source, Target};
 use crate::util::strip_formatting;
-use crate::world::{WorldId, GameWorlds};
+use crate::world::{GameWorlds, WorldId};
 
 pub struct NetworkingPlugin;
 

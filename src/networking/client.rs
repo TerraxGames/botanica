@@ -3,7 +3,6 @@ use std::net::UdpSocket;
 use std::str::FromStr;
 
 use bevy::prelude::*;
-use bevy::render::MainWorld;
 use rand::{Rng, RngCore};
 use rand::rngs::OsRng;
 use renet::{ConnectionConfig, RenetClient};
@@ -13,7 +12,6 @@ use crate::{env, GameState, ServerAddressPort, util};
 use crate::networking::{Ping, protocol, Username};
 use crate::networking::protocol::{PlayerData, ServerMessage, ServerResponse};
 use crate::player::Target;
-use crate::world::GameWorld;
 
 #[derive(Debug, Resource)]
 pub struct LocalPlayer(PlayerData, u64);

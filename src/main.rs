@@ -1,5 +1,4 @@
 use std::any::TypeId;
-use std::ops::Range;
 
 use bevy::asset::{AssetIo, AssetIoError};
 use bevy::ecs::archetype::Archetypes;

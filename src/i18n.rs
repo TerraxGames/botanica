@@ -1,7 +1,7 @@
 use bevy::prelude::{Assets, AssetServer, Handle, Res};
 
-use crate::asset::parse_namespaced;
 use crate::asset::locale::LocaleAsset;
+use crate::asset::parse_namespaced;
 
 pub struct Translatable {
 	key: String,

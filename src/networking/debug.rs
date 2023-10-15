@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use bevy_egui::{EguiContext, EguiContexts};
+use bevy_egui::EguiContexts;
 use renet::{RenetClient, RenetServer, ServerEvent};
 use renet_visualizer::{RenetClientVisualizer, RenetServerVisualizer};
 
