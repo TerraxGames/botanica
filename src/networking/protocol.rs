@@ -1,11 +1,13 @@
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 use crate::{TilePos, Username};
 use crate::player::{Source, Target};
 
 pub const PROTOCOL_ID: u64 = 0x460709E200F3661E;
 pub const PROTOCOL_VER: ProtocolVersion = ProtocolVersion(0);
+pub const CLIENT_TIMEOUT: u64 = 5000;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct ProtocolVersion(pub u32);
@@ -95,19 +97,29 @@ pub struct ClientResponseBundle {
 	pub response: ClientResponse,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Component)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Component, Error)]
 pub enum DisconnectReason {
+	#[error("Mismatched protocol version; required: \"{required_version_string}\" @ {required_protocol_ver}")]
 	ProtocolReject {
 		/// The protocol version that is required
 		required_protocol_ver: ProtocolVersion,
 		/// The required version string
 		required_version_string: String,
 	},
+	#[error("The userdata field is empty!")]
 	EmptyUserdata,
+	#[error("Server is full: {0}")]
 	ServerFull(String),
+	#[error("Kicked: {0}")]
 	Kicked(String),
+	#[error("Banned: {0}")]
 	Banned(String),
+	#[error("The server has shutdown: {0}")]
 	Shutdown(String),
+	#[error("{}", match .0 {
+		Some(string) => string.to_string(),
+		None => "Unknown".to_string(),
+	})]
 	Other(Option<String>),
 }
 

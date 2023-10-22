@@ -5,10 +5,13 @@ use bevy::prelude::*;
 use bevy_egui::{egui, EguiContexts};
 use bevy_egui::egui::style::Margin;
 use renet::RenetClient;
+use renet::transport::NetcodeClientTransport;
 
 use crate::{asset, DEFAULT_LOCALE, despawn_with, from_asset_loc, GameState, LocaleAsset, menu, NAMESPACE, Translatable};
 use crate::menu::{BACKGROUND, BUTTON_BOTTOM_PADDING, BUTTON_HEIGHT, BUTTON_SCALE, BUTTON_TEXT_SIZE, BUTTON_WIDTH, NORMAL_BUTTON, TEXT_MARGIN};
 use crate::menu::button::{ButtonColor, ButtonDownImage, ButtonImageBundle, ButtonUpImage, PreviousButtonInteraction, PreviousButtonProperties};
+use crate::networking::client::disconnect;
+use crate::networking::DisconnectReason;
 
 #[derive(Resource, Default)]
 struct WorldSelection(String);
@@ -259,6 +262,7 @@ fn button_action(
 		(&Interaction, &PreviousButtonInteraction, &ButtonAction),
 		(Changed<Interaction>, With<Button>),
 	>,
+	mut transport: ResMut<NetcodeClientTransport>,
 	mut client: ResMut<RenetClient>,
 	mut next_state: ResMut<NextState<GameState>>,
 ) {
@@ -267,7 +271,7 @@ fn button_action(
 			match button_action {
 				ButtonAction::Enter => next_state.set(GameState::LoadingWorld),
 				ButtonAction::Cancel => {
-					client.disconnect();
+					disconnect(DisconnectReason::Client(renet::DisconnectReason::DisconnectedByClient), &mut transport, &mut client, true);
 					next_state.set(GameState::TitleScreen);
 				},
 				_ => unimplemented!("{}", button_action),

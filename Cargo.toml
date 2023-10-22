@@ -11,6 +11,7 @@ serde = { version = "1", features = ["derive"] }
 bincode = "1.3"
 ron = "0.8.1"
 anyhow = "1"
+thiserror = "1"
 bevy_egui = { version = "0.21", features = ["immutable_ctx"] }
 renet = "0.0.13"
 renet_visualizer = { version = "0.0.6", features = ["bevy"] }

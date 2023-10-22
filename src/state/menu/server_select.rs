@@ -7,7 +7,7 @@ use bevy_egui::egui::style::Margin;
 use futures::task::SpawnExt;
 
 // jesus fucking christ
-use crate::{asset, DEFAULT_LOCALE, despawn_with, from_asset_loc, GameState, LocaleAsset, menu, NAMESPACE, ServerAddressPort, Translatable};
+use crate::{asset, DEFAULT_LOCALE, despawn_with, from_asset_loc, GameState, LocaleAsset, menu, NAMESPACE, ServerConnectAddress, Translatable};
 use crate::menu::{BACKGROUND, BUTTON_BOTTOM_PADDING, BUTTON_HEIGHT, BUTTON_SCALE, BUTTON_TEXT_SIZE, BUTTON_WIDTH, NORMAL_BUTTON, TEXT_MARGIN};
 use crate::menu::button::{ButtonColor, ButtonDownImage, ButtonImageBundle, ButtonUpImage, PreviousButtonInteraction, PreviousButtonProperties};
 
@@ -235,7 +235,7 @@ fn text_box(
 	mut gui_ctx: EguiContexts,
 	asset_server: Res<AssetServer>,
 	locale_assets: Res<Assets<LocaleAsset>>,
-	mut server_address: ResMut<ServerAddressPort>,
+	mut server_address: ResMut<ServerConnectAddress>,
 ) {
 	let button_up = ButtonUpImage::from(asset_server.get_handle(from_asset_loc(NAMESPACE, "textures/ui/button/button_up.png")));
 	let button_down = ButtonDownImage::from(asset_server.get_handle(from_asset_loc(NAMESPACE, "textures/ui/button/button_down.png")));
@@ -253,7 +253,7 @@ fn text_box(
 		&asset_server,
 		&locale_assets,
 	)).show(gui_ctx.ctx(), |ui| {
-		ui.text_edit_singleline(&mut server_address.0);
+		let text_box = ui.text_edit_singleline(&mut server_address.0);
 	});
 }
 

@@ -1,4 +1,6 @@
 use std::any::TypeId;
+use std::net::{AddrParseError, SocketAddr};
+use std::str::FromStr;
 
 use bevy::asset::{AssetIo, AssetIoError};
 use bevy::ecs::archetype::Archetypes;
@@ -19,8 +21,7 @@ use crate::networking::{client, server, Username};
 use crate::networking::debug::NetworkingDebugPlugin;
 use crate::registry::Registry;
 use crate::registry::tile::TileRegistry;
-use crate::server::{ServerAddress, ServerConfig, ServerPort};
-use crate::world::GameWorlds;
+use crate::server::ServerPort;
 
 pub mod registry;
 pub mod identifier;
@@ -44,15 +45,21 @@ pub const DEFAULT_LOCALE: &'static str = "en_us";
 #[derive(Debug, Default, Copy, Clone, Resource)]
 pub struct Headless(bool);
 
-/// fixme: [`ServerAddressPort::default`]
-#[derive(Resource)]
-pub struct ServerAddressPort(pub String, pub u16);
+/// This is what is used in the address text box.
+#[derive(Debug, Resource)]
+pub struct ServerConnectAddress(pub String);
 
-impl Default for ServerAddressPort {
+impl TryInto<SocketAddr> for &ServerConnectAddress {
+	type Error = AddrParseError;
+	
+	fn try_into(self) -> Result<SocketAddr, Self::Error> {
+		Ok(SocketAddr::from_str(&*self.0)?)
+	}
+}
+
+impl Default for ServerConnectAddress {
 	fn default() -> Self {
-		let address = ServerAddress::default().0;
-		let port = ServerPort::default().0;
-		Self(format!("{}:{}", address, port), port) // what the fuck
+		Self(format!("127.0.0.1:{}", ServerPort::default().0))
 	}
 }
 
@@ -62,6 +69,7 @@ pub fn is_headless(headless: Headless) -> bool {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, States)]
 pub enum GameState {
+	// Client
 	Loading,
 	/// The splash screen displaying "made with Bevy".
 	BevySplash,
@@ -71,6 +79,8 @@ pub enum GameState {
 	WorldSelect,
 	LoadingWorld,
 	InWorld,
+	
+	// Server
 	ServerLoading,
 	ServerLoaded,
 }
@@ -121,13 +131,10 @@ pub fn main() {
 	if env == EnvType::Client {
 		app
 			.add_plugins(client::NetworkingPlugin)
-			.insert_resource(username)
-			.init_resource::<ServerAddressPort>();
+			.insert_resource(username);
 	} else {
 		app
-			.add_plugins(server::NetworkingPlugin)
-			.init_resource::<GameWorlds>()
-			.init_resource::<ServerConfig>();
+			.add_plugins(server::NetworkingPlugin);
 	}
 	
 	app.run();

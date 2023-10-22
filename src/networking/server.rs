@@ -1,15 +1,15 @@
 use std::collections::HashMap;
-use std::net::UdpSocket;
+use std::net::{SocketAddr, UdpSocket};
 
 use bevy::prelude::*;
-use rand::Rng;
-use rand::rngs::OsRng;
+use bevy_renet::RenetServerPlugin;
+use bevy_renet::transport::NetcodeServerPlugin;
 use renet::{ConnectionConfig, RenetServer, ServerEvent};
 use renet::transport::{NetcodeServerTransport, ServerAuthentication};
 use serde::{Deserialize, Serialize};
 
 use crate::{env, GameState, Username, util};
-use crate::networking::{Ping, protocol};
+use crate::networking::{Ping, protocol, time_since_epoch};
 use crate::networking::protocol::{ChatMessageBundle, ChatMessageContent, ClientId, ClientMessage, ClientMessageBundle, ClientResponse, ClientResponseBundle, PlayerData};
 use crate::player::{Source, Target};
 use crate::util::strip_formatting;
@@ -20,7 +20,11 @@ pub struct NetworkingPlugin;
 impl Plugin for NetworkingPlugin {
 	fn build(&self, app: &mut App) {
 		app
+			.add_plugins(RenetServerPlugin)
+			.add_plugins(NetcodeServerPlugin)
 			.init_resource::<Players>()
+			.init_resource::<GameWorlds>()
+			.init_resource::<ServerConfig>()
 			.add_systems(
 				OnEnter(GameState::ServerLoading),
 				setup
@@ -84,28 +88,22 @@ fn setup(
 	server_config: Res<ServerConfig>,
 	mut commands: Commands,
 	mut next_state: ResMut<NextState<GameState>>,
-	mut time: ResMut<Time>,
 ) {
 	let connection_config = ConnectionConfig::default();
 	
-	time.update();
-	
 	let address = format!("{}:{}", server_config.address.0, server_config.port.0);
 	
-	let mut rng = OsRng::default();
-	let private_key = &mut [0u8; 32];
-	rng.fill(private_key);
-	let authentication = ServerAuthentication::Secure { private_key: *private_key };
+	let authentication = ServerAuthentication::Unsecure;
 	
 	let server_config = renet::transport::ServerConfig {
 		max_clients: server_config.max_clients,
 		protocol_id: protocol::PROTOCOL_ID,
-		public_addr: address.parse().expect(&format!("Failed to parse address \"{}\"", address)),
+		public_addr: address.parse::<SocketAddr>().expect(&format!("Failed to parse address \"{}\"", address)),
 		authentication,
 	};
 	
 	let socket = UdpSocket::bind(&address).expect(&format!("Failed to bind to address \"{}\"", address));
-	let current_time = time.elapsed();
+	let current_time = time_since_epoch();
 	
 	let server = RenetServer::new(connection_config);
 	let transport = NetcodeServerTransport::new(current_time, server_config, socket).expect("Failed to create transport");
@@ -119,17 +117,9 @@ fn setup(
 fn server(
 	mut server: ResMut<RenetServer>,
 	mut transport: ResMut<NetcodeServerTransport>,
-	mut time: ResMut<Time>,
 	mut commands: Commands,
 	mut players: ResMut<Players>,
 ) {
-	time.update();
-	
-	let current_time = time.elapsed();
-	
-	server.update(current_time);
-	transport.update(current_time, &mut server).expect("Failed to update NetcodeServerTransport");
-	
 	while let Some(event) = server.get_event() {
 		match event {
 			ServerEvent::ClientConnected { client_id: id } => {
@@ -210,16 +200,13 @@ fn client_response(
 	message_query: Query<(&ClientId, &ClientResponse)>,
 	mut server: ResMut<RenetServer>,
 	mut commands: Commands,
-	mut time: ResMut<Time>,
 	mut worlds: ResMut<GameWorlds>,
 	mut players: ResMut<Players>,
 ) {
-	time.update();
-	
 	for (client_id, response) in message_query.iter() {
 		match response {
 			ClientResponse::PingAck { timestamp } => {
-				let timestamp = time.elapsed().as_millis();
+				let timestamp_now = time_since_epoch().as_millis();
 				let (_, _, entity) = players.0.get(&client_id.0).unwrap();
 				let entity = entity.unwrap();
 				commands.entity(*entity).log_components();

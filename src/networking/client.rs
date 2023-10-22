@@ -1,29 +1,45 @@
 use std::net::SocketAddr;
 use std::net::UdpSocket;
-use std::str::FromStr;
+use std::time::Duration;
 
 use bevy::prelude::*;
-use rand::{Rng, RngCore};
-use rand::rngs::OsRng;
+use bevy::utils::Instant;
+use bevy_renet::RenetClientPlugin;
+use bevy_renet::transport::NetcodeClientPlugin;
 use renet::{ConnectionConfig, RenetClient};
-use renet::transport::{ClientAuthentication, ConnectToken, NetcodeClientTransport};
+use renet::transport::{ClientAuthentication, NetcodeClientTransport};
 
-use crate::{env, GameState, ServerAddressPort, util};
-use crate::networking::{Ping, protocol, Username};
+use crate::{env, GameState, ServerConnectAddress, util};
+use crate::networking::{DisconnectReason, Ping, protocol, time_since_epoch, Username};
 use crate::networking::protocol::{PlayerData, ServerMessage, ServerResponse};
 use crate::player::Target;
 
 #[derive(Debug, Resource)]
-pub struct LocalPlayer(PlayerData, u64);
+pub struct LocalPlayer(pub PlayerData, pub u64);
+
+#[derive(Debug, Resource)]
+struct ConnectedTime(Instant);
+
+#[derive(Debug, Resource)]
+struct ConnectingTimeout(Duration);
 
 pub struct NetworkingPlugin;
 
 impl Plugin for NetworkingPlugin {
 	fn build(&self, app: &mut App) {
 		app
+			.add_plugins(RenetClientPlugin)
+			.add_plugins(NetcodeClientPlugin)
+			.init_resource::<ServerConnectAddress>()
 			.add_systems(
 				OnEnter(GameState::ClientConnecting),
 				setup
+					.run_if(env::is_client)
+			)
+			.add_systems(
+				Update,
+				connecting
+					.run_if(in_state(GameState::ClientConnecting))
 					.run_if(env::is_client)
 			)
 			.add_systems(
@@ -33,30 +49,25 @@ impl Plugin for NetworkingPlugin {
 					server_message,
 					server_response
 				)
-					.run_if(in_state(GameState::WorldSelect))
-					.run_if(in_state(GameState::LoadingWorld))
-					.run_if(in_state(GameState::InWorld))
+					.run_if(
+						in_state(GameState::WorldSelect)
+							.or_else(in_state(GameState::LoadingWorld))
+							.or_else(in_state(GameState::InWorld))
+					)
 					.run_if(env::is_client)
 			);
 	}
 }
 
 fn setup(
-	server_address: Res<ServerAddressPort>,
+	server_address: Res<ServerConnectAddress>,
 	username: Res<Username>,
 	mut commands: Commands,
 	mut next_state: ResMut<NextState<GameState>>,
-	mut time: ResMut<Time>,
 ) {
 	let connection_config = ConnectionConfig::default();
 	
-	time.update();
-	
-	let mut rng = OsRng::default();
-	let private_key = &mut [0u8; 32];
-	rng.fill(private_key);
-	
-	let client_id = rng.next_u64();
+	let client_id = time_since_epoch().as_millis() as u64;
 	
 	commands.insert_resource(
 		LocalPlayer(
@@ -67,46 +78,99 @@ fn setup(
 		)
 	);
 	
-	let client_addr = "0.0.0.0:44737"; // i think we should keep it on this port, since it doesn't conflict with the default one (in case one is running a server on the same
+	let client_addr = "0.0.0.0:0"; // request dynamic port
 	let socket = UdpSocket::bind(&client_addr).expect(&format!("Failed to bind to address \"{}\"", client_addr));
-	let current_time = time.elapsed();
+	let current_time = time_since_epoch();
+	let server_addr: Option<SocketAddr> = { // weird hack
+		let server_address = server_address.into_inner();
+		let res = server_address.try_into();
+		match res {
+			Ok(addr) => Some(addr),
+			Err(error) => {
+				commands.insert_resource(DisconnectReason::AddrParseError(error));
+				next_state.set(GameState::TitleScreen); // todo: disconnect screen
+				return;
+			},
+		}
+	};
+	let server_addr: SocketAddr = server_addr.unwrap(); // should've returned if none, so we can unwrap
 	
 	// todo: authentication
-	let connect_token = ConnectToken::generate(
-		current_time,
-		protocol::PROTOCOL_ID,
-		300,
+	let authentication = ClientAuthentication::Unsecure {
+		protocol_id: protocol::PROTOCOL_ID,
 		client_id,
-		15,
-		vec![SocketAddr::from_str(&server_address.0).unwrap()],
-		Some(&username.to_user_data()),
-		private_key,
-	).unwrap();
-	let authentication = ClientAuthentication::Secure { connect_token };
+		server_addr,
+		user_data: Some(username.to_user_data()),
+	};
 	
 	let client = RenetClient::new(connection_config);
-	let transport = NetcodeClientTransport::new(current_time, authentication, socket).expect("Failed to create new NetcodeClientTransport");
+	let transport = NetcodeClientTransport::new(current_time, authentication, socket).expect("Failed to initialize NetcodeClientTransport");
 	
 	commands.insert_resource(client);
 	commands.insert_resource(transport);
-	next_state.set(GameState::WorldSelect);
+	commands.insert_resource(ConnectedTime(Instant::now()));
+	commands.insert_resource(ConnectingTimeout(Duration::from_millis(protocol::CLIENT_TIMEOUT)));
+}
+
+fn connecting(
+	mut client: Option<ResMut<RenetClient>>,
+	mut transport: Option<ResMut<NetcodeClientTransport>>,
+	mut commands: Commands,
+	mut next_state: ResMut<NextState<GameState>>,
+	connected_time: Option<Res<ConnectedTime>>,
+	connecting_timeout: Option<Res<ConnectingTimeout>>,
+	disconnect_reason: Option<Res<DisconnectReason>>,
+) {
+	if let Some(reason) = disconnect_reason {
+		commands.remove_resource::<DisconnectReason>();
+		println!("Disconnected.\nReason: {}", reason.into_inner());
+		return
+	}
+	
+	if client.is_none() || transport.is_none() || connected_time.is_none() || connecting_timeout.is_none() {
+		return
+	}
+	
+	let mut client = client.unwrap();
+	let mut transport = transport.unwrap();
+	let connected_time = connected_time.unwrap();
+	let connecting_timeout = connecting_timeout.unwrap();
+	
+	if connected_time.0.elapsed() >= connecting_timeout.0 {
+		on_disconnect(DisconnectReason::Transport(renet::transport::NetcodeDisconnectReason::ConnectionTimedOut), next_state, transport.into_inner(), client.into_inner());
+		return
+	}
+	
+	if let Some(reason) = transport.disconnect_reason() {
+		on_disconnect(DisconnectReason::Transport(reason), next_state, transport.into_inner(), client.into_inner());
+		return
+	}
+	
+	if let Some(reason) = client.disconnect_reason() {
+		on_disconnect(DisconnectReason::Client(reason), next_state, transport.into_inner(), client.into_inner());
+		return
+	}
+	
+	if transport.is_connected() {
+		println!("Connected to server.");
+		next_state.set(GameState::WorldSelect)
+	}
 }
 
 fn client(
 	mut client: ResMut<RenetClient>,
 	mut transport: ResMut<NetcodeClientTransport>,
-	mut time: ResMut<Time>,
 	mut commands: Commands,
+	next_state: ResMut<NextState<GameState>>,
 ) {
-	time.update();
-	
-	let current_time = time.elapsed();
-	
-	client.update(current_time);
-	transport.update(current_time, &mut client).expect("Failed to update NetcodeClientTransport");
+	if let Some(reason) = transport.disconnect_reason() {
+		on_disconnect(DisconnectReason::Transport(reason), next_state, transport.into_inner(), client.into_inner());
+		return
+	}
 	
 	if let Some(reason) = client.disconnect_reason() {
-		println!("Disconnected.\nReason: {}", reason);
+		on_disconnect(DisconnectReason::Client(reason), next_state, transport.into_inner(), client.into_inner());
+		return
 	}
 	
 	for channel_id in 0..=2 {
@@ -154,14 +218,11 @@ fn server_response(
 	response_query: Query<&ServerResponse>,
 	mut next_state: ResMut<NextState<GameState>>,
 	mut commands: Commands,
-	mut time: ResMut<Time>,
 ) {
-	time.update();
-	
 	for response in response_query.iter() {
 		match response {
 			ServerResponse::PingAck { timestamp } => {
-				let ping = (time.elapsed().as_millis() - timestamp) as u32;
+				let ping = (time_since_epoch().as_millis() - timestamp) as u32;
 				commands.insert_resource(Ping(ping));
 			}
 			ServerResponse::EnterWorldAccept => next_state.set(GameState::LoadingWorld),
@@ -178,4 +239,17 @@ pub fn send_chat(
 ) {
 	let message = protocol::Message::ClientMessage(protocol::ClientMessage::ChatMessage(target, message));
 	client.send_message(0, util::serialize(&message).unwrap());
+}
+
+pub fn disconnect(reason: DisconnectReason, transport: &mut NetcodeClientTransport, client: &mut RenetClient, disconnect_client: bool) {
+	if disconnect_client {
+		transport.disconnect();
+		client.disconnect_due_to_transport();
+	}
+	println!("Disconnected.\nReason: {}", reason);
+}
+
+fn on_disconnect(reason: DisconnectReason, mut next_state: ResMut<NextState<GameState>>, transport: &mut NetcodeClientTransport, client: &mut RenetClient) {
+	disconnect(reason, transport, client, false);
+	next_state.set(GameState::TitleScreen); // todo: disconnect screen
 }
