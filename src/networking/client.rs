@@ -177,7 +177,7 @@ fn connecting(
 			send_message!(client, DefaultChannel::ReliableOrdered, protocol::ClientMessage::JoinRequest { protocol_ver: protocol::PROTOCOL_VER });
 		} else {
 			if let Some(buf) = client.receive_message(DefaultChannel::ReliableOrdered) {
-				let message = util::deserialize::<protocol::Message>(&buf)?;
+				let message = util::deserialize_be::<protocol::Message>(&buf)?;
 				match message {
 					protocol::Message::ServerMessage(message) => {
 						match message {
@@ -219,7 +219,7 @@ fn client(
 	
 	for channel_id in 0..=2 {
 		while let Some(buf) = client.receive_message(channel_id) {
-			let message = util::deserialize::<protocol::Message>(&buf)?;
+			let message = util::deserialize_be::<protocol::Message>(&buf)?;
 			match message {
 				protocol::Message::ServerMessage(message) => {
 					commands.spawn(message);

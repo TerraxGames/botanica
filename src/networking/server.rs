@@ -165,7 +165,7 @@ fn server(
 	for client_id in server.clients_id() {
 		for channel_id in 0..=2 {
 			while let Some(buf) = server.receive_message(client_id, channel_id) {
-				let message = util::deserialize::<protocol::Message>(&buf);
+				let message = util::deserialize_be::<protocol::Message>(&buf);
 				if let Ok(message) = message {
 					match message {
 						protocol::Message::ClientMessage(message) => {

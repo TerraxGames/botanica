@@ -1,6 +1,4 @@
 use bevy::prelude::*;
-use serde::{Deserialize, Serialize};
-
 use crate::i18n::Translatable;
 use crate::identifier::Identifier;
 use crate::Registry;
@@ -15,12 +13,9 @@ impl<'a> Default for TileRegistry<'a> {
 	}
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Component)]
-pub struct TileData(pub u8); // todo: advanced tile data
-
 pub struct TileDef<'a> {
 	identifier: Identifier<'a>,
-	name: Translatable,
+	name: Translatable, // todo: when we make this serde-able, give the name field a default (thus making it optional in the tiles ron file)
 }
 
 impl<'a> TileDef<'a> {

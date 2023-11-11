@@ -1,12 +1,21 @@
 use bincode::{DefaultOptions, Error, Options};
-use bincode::config::{AllowTrailing, BigEndian, FixintEncoding, RejectTrailing, WithOtherEndian, WithOtherIntEncoding, WithOtherTrailing};
+use bincode::config::{AllowTrailing, BigEndian, FixintEncoding, LittleEndian, RejectTrailing, WithOtherEndian, WithOtherIntEncoding, WithOtherTrailing};
 use once_cell::sync::Lazy;
 use regex::Regex;
 
-static OPTIONS: Lazy<WithOtherTrailing<WithOtherEndian<WithOtherIntEncoding<DefaultOptions, FixintEncoding>, BigEndian>, RejectTrailing>> = Lazy::new(|| {
+pub mod sanitize;
+
+static OPTIONS_BE: Lazy<WithOtherTrailing<WithOtherEndian<WithOtherIntEncoding<DefaultOptions, FixintEncoding>, BigEndian>, RejectTrailing>> = Lazy::new(|| {
 	DefaultOptions::new()
 		.with_fixint_encoding()
 		.with_big_endian()
+		.reject_trailing_bytes()
+});
+
+static OPTIONS_LE: Lazy<WithOtherTrailing<WithOtherEndian<WithOtherIntEncoding<DefaultOptions, FixintEncoding>, LittleEndian>, RejectTrailing>> = Lazy::new(|| {
+	DefaultOptions::new()
+		.with_fixint_encoding()
+		.with_little_endian()
 		.reject_trailing_bytes()
 });
 
@@ -17,11 +26,19 @@ static OPTIONS_TRAILING: Lazy<WithOtherTrailing<WithOtherEndian<WithOtherIntEnco
 		.allow_trailing_bytes()
 });
 
+pub fn serialize_be<T>(ser: &T) -> Result<Vec<u8>, Error>
+	where
+		T: serde::ser::Serialize,
+{
+	OPTIONS_BE
+		.serialize(ser)
+}
+
 pub fn serialize<T>(ser: &T) -> Result<Vec<u8>, Error>
 	where
 		T: serde::ser::Serialize,
 {
-	OPTIONS
+	OPTIONS_LE
 		.serialize(ser)
 }
 
@@ -33,11 +50,19 @@ pub fn serialize_trailing<T>(ser: &T) -> Result<Vec<u8>, Error>
 		.serialize(ser)
 }
 
+pub fn deserialize_be<'a, T>(bytes: &'a [u8]) -> Result<T, Error>
+	where
+		T: serde::de::Deserialize<'a>,
+{
+	OPTIONS_BE
+		.deserialize(bytes)
+}
+
 pub fn deserialize<'a, T>(bytes: &'a [u8]) -> Result<T, Error>
 	where
 		T: serde::de::Deserialize<'a>,
 {
-	OPTIONS
+	OPTIONS_LE
 		.deserialize(bytes)
 }
 

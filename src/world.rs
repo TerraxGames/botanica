@@ -4,11 +4,8 @@ use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::networking::protocol::ClientId;
-use crate::raw_id::RawId;
-use crate::registry::tile::TileData;
+use crate::tile::WorldTile;
 use crate::TilePos;
-
-pub type WorldTile = (RawId, TileData);
 
 #[derive(Resource, Default)]
 pub struct GameWorlds(HashMap<String, WorldId>, HashMap<WorldId, GameWorld>);
@@ -40,7 +37,7 @@ impl GameWorlds {
 #[derive(Debug, Clone, Serialize, Deserialize, Component)]
 pub struct GameWorld {
 	id: WorldId,
-	name: &'static str,
+	name: String,
 	tiles: HashMap<TilePos, WorldTile>,
 	players: Vec<ClientId>,
 }

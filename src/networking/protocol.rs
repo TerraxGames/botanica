@@ -6,7 +6,7 @@ use renet::Bytes;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{TilePos, Username, util};
+use crate::{TilePos, Username};
 use crate::networking::error::NetworkError;
 use crate::player::{Source, Target};
 
@@ -38,7 +38,7 @@ macro_rules! impl_try_into_bytes {
 			type Error = NetworkError;
 			
 			fn try_into(self) -> Result<Bytes, Self::Error> {
-				Ok(util::serialize(&Message::$t(self))?.into())
+				Ok($crate::util::serialize_be(&Message::$t(self))?.into())
 			}
 		}
 	};

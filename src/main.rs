@@ -35,7 +35,8 @@ pub mod util;
 pub mod player;
 pub mod world;
 pub mod creature;
-mod state;
+pub mod state;
+pub mod save;
 
 pub const NAMESPACE: &'static str = "botanica";
 
@@ -93,7 +94,7 @@ impl Default for GameState {
 	}
 }
 
-#[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Component)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash, Component)]
 pub struct TilePos(pub u64, pub u64);
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Component)]
