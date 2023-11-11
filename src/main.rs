@@ -108,28 +108,36 @@ pub fn main() {
 	
 	app
 		.add_state::<GameState>()
-		.add_plugins(DefaultPlugins)
-		.add_plugins((EguiPlugin, NetworkingDebugPlugin))
 		.init_resource::<networking::stats::PlayerNetStats>()
 		.insert_resource(env)
 		.insert_resource(headless)
-		.init_resource::<loading::AssetsLoading>()
 		.init_resource::<TileRegistry>() // todo: tile registry and other registries
-		.add_asset::<LocaleAsset>()
-		.init_asset_loader::<LocaleAssetLoader>()
-		.add_systems(
-			Startup,
-			menu::init_ui
-		)
-		.add_plugins(
-			(
-				loading::LoadingPlugin,
-				menu::bevy_splash::BevySplashPlugin,
-				menu::title_screen::TitleScreenPlugin,
-				menu::world_select::WorldSelectPlugin,
-				menu::server_select::ServerSelectPlugin
+		.init_resource::<loading::AssetsLoading>()
+		.add_plugins(loading::LoadingPlugin);
+	
+	if headless.0 && env == EnvType::Server {
+		app
+			.add_plugins(MinimalPlugins)
+			.add_plugins(AssetPlugin::default());
+	} else {
+		app
+			.add_plugins(DefaultPlugins)
+			.add_plugins((EguiPlugin, NetworkingDebugPlugin))
+			.add_asset::<LocaleAsset>()
+			.init_asset_loader::<LocaleAssetLoader>()
+			.add_plugins(
+				(
+					menu::bevy_splash::BevySplashPlugin,
+					menu::title_screen::TitleScreenPlugin,
+					menu::world_select::WorldSelectPlugin,
+					menu::server_select::ServerSelectPlugin
+				)
 			)
-		);
+			.add_systems(
+				Startup,
+				menu::init_ui
+			);
+	}
 	
 	if env == EnvType::Client {
 		app
