@@ -1164,6 +1164,8 @@ dependencies = [
  "bevy_renet",
  "bincode",
  "futures",
+ "once_cell",
+ "paste",
  "rand",
  "regex",
  "renet",

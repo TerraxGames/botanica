@@ -4,14 +4,16 @@ use std::fmt::Formatter;
 use bevy::prelude::*;
 use bevy_egui::{egui, EguiContexts};
 use bevy_egui::egui::style::Margin;
-use renet::RenetClient;
+use renet::{DefaultChannel, RenetClient};
 use renet::transport::NetcodeClientTransport;
 
 use crate::{asset, DEFAULT_LOCALE, despawn_with, from_asset_loc, GameState, LocaleAsset, menu, NAMESPACE, Translatable};
 use crate::menu::{BACKGROUND, BUTTON_BOTTOM_PADDING, BUTTON_HEIGHT, BUTTON_SCALE, BUTTON_TEXT_SIZE, BUTTON_WIDTH, NORMAL_BUTTON, TEXT_MARGIN};
 use crate::menu::button::{ButtonColor, ButtonDownImage, ButtonImageBundle, ButtonUpImage, PreviousButtonInteraction, PreviousButtonProperties};
 use crate::networking::client::disconnect;
-use crate::networking::DisconnectReason;
+use crate::networking::{client, DisconnectReason, protocol};
+use crate::networking::error::{NetworkError, NETWORK_ERROR_MESSAGE};
+use crate::util::nonfatal_error_systems;
 
 #[derive(Resource, Default)]
 struct WorldSelection(String);
@@ -28,7 +30,7 @@ impl Plugin for WorldSelectPlugin {
 				Update,
 				(
 					menu::button::style,
-					button_action,
+					nonfatal_error_systems!(NETWORK_ERROR_MESSAGE, NetworkError, button_action),
 					text_box,
 				)
 					.run_if(in_state(GameState::WorldSelect))
@@ -265,11 +267,14 @@ fn button_action(
 	mut transport: ResMut<NetcodeClientTransport>,
 	mut client: ResMut<RenetClient>,
 	mut next_state: ResMut<NextState<GameState>>,
-) {
+	world_name: Res<WorldSelection>,
+) -> Result<(), NetworkError> {
 	for (interaction, previous_interaction, button_action) in interaction_query.iter() {
 		if *interaction == Interaction::Hovered && *previous_interaction == Interaction::Pressed.into() {
 			match button_action {
-				ButtonAction::Enter => next_state.set(GameState::LoadingWorld),
+				ButtonAction::Enter => {
+					client::send_message!(client, DefaultChannel::ReliableOrdered, protocol::ClientMessage::EnterWorldRequest(world_name.0.clone()))
+				},
 				ButtonAction::Cancel => {
 					disconnect(DisconnectReason::Client(renet::DisconnectReason::DisconnectedByClient), &mut transport, &mut client, true);
 					next_state.set(GameState::TitleScreen);
@@ -278,4 +283,6 @@ fn button_action(
 			}
 		}
 	}
+	
+	Ok(())
 }

@@ -6,22 +6,15 @@ use bevy::prelude::*;
 use bevy::utils::Instant;
 use bevy_renet::RenetClientPlugin;
 use bevy_renet::transport::NetcodeClientPlugin;
-use renet::{ConnectionConfig, RenetClient};
+use renet::{ConnectionConfig, DefaultChannel, RenetClient};
 use renet::transport::{ClientAuthentication, NetcodeClientTransport};
 
 use crate::{env, GameState, ServerConnectAddress, util};
 use crate::networking::{DisconnectReason, Ping, protocol, time_since_epoch, Username};
+use crate::networking::error::{NETWORK_ERROR_MESSAGE, NetworkError};
 use crate::networking::protocol::{PlayerData, ServerMessage, ServerResponse};
 use crate::player::Target;
-
-#[derive(Debug, Resource)]
-pub struct LocalPlayer(pub PlayerData, pub u64);
-
-#[derive(Debug, Resource)]
-struct ConnectedTime(Instant);
-
-#[derive(Debug, Resource)]
-struct ConnectingTimeout(Duration);
+use crate::util::nonfatal_error_systems;
 
 pub struct NetworkingPlugin;
 
@@ -38,16 +31,16 @@ impl Plugin for NetworkingPlugin {
 			)
 			.add_systems(
 				Update,
-				connecting
+				(
+						nonfatal_error_systems!(NETWORK_ERROR_MESSAGE, NetworkError, connecting)
+				)
 					.run_if(in_state(GameState::ClientConnecting))
 					.run_if(env::is_client)
 			)
 			.add_systems(
 				Update,
 				(
-					client,
-					server_message,
-					server_response
+					nonfatal_error_systems!(NETWORK_ERROR_MESSAGE, NetworkError, client, server_message, server_response),
 				)
 					.run_if(
 						in_state(GameState::WorldSelect)
@@ -58,6 +51,31 @@ impl Plugin for NetworkingPlugin {
 			);
 	}
 }
+
+macro_rules! send_message {
+    ($client:expr, $channel_id:expr, $message:expr) => {
+		{
+			$crate::util::struct_enforce!($client, renet::RenetClient, ResMut<'_, renet::RenetClient>);
+			$crate::util::trait_enforce!($channel_id, Into<u8>);
+			$client.send_message($channel_id, TryInto::<renet::Bytes>::try_into($message)?);
+		}
+	};
+}
+
+pub(crate) use send_message;
+
+#[derive(Debug, Resource)]
+pub struct LocalPlayer(pub PlayerData, pub u64);
+
+#[derive(Debug, Resource)]
+struct ConnectedTime(Instant);
+
+#[derive(Debug, Resource)]
+struct ConnectingTimeout(Duration);
+
+/// Indicates that the connection has been established and that we have already sent the initial packets.
+#[derive(Debug, Default, Resource)]
+struct ConnectionEstablished;
 
 fn setup(
 	server_address: Res<ServerConnectAddress>,
@@ -120,15 +138,16 @@ fn connecting(
 	connected_time: Option<Res<ConnectedTime>>,
 	connecting_timeout: Option<Res<ConnectingTimeout>>,
 	disconnect_reason: Option<Res<DisconnectReason>>,
-) {
+	connection_established: Option<Res<ConnectionEstablished>>,
+) -> Result<(), NetworkError> {
 	if let Some(reason) = disconnect_reason {
 		commands.remove_resource::<DisconnectReason>();
 		println!("Disconnected.\nReason: {}", reason.into_inner());
-		return
+		return Ok(())
 	}
 	
 	if client.is_none() || transport.is_none() || connected_time.is_none() || connecting_timeout.is_none() {
-		return
+		return Ok(())
 	}
 	
 	let mut client = client.unwrap();
@@ -137,24 +156,49 @@ fn connecting(
 	let connecting_timeout = connecting_timeout.unwrap();
 	
 	if connected_time.0.elapsed() >= connecting_timeout.0 {
-		on_disconnect(DisconnectReason::Transport(renet::transport::NetcodeDisconnectReason::ConnectionTimedOut), next_state, transport.into_inner(), client.into_inner());
-		return
+		on_disconnect(DisconnectReason::Transport(renet::transport::NetcodeDisconnectReason::ConnectionTimedOut), next_state.into_inner(), transport.into_inner(), client.into_inner());
+		return Ok(())
 	}
 	
 	if let Some(reason) = transport.disconnect_reason() {
-		on_disconnect(DisconnectReason::Transport(reason), next_state, transport.into_inner(), client.into_inner());
-		return
+		on_disconnect(DisconnectReason::Transport(reason), next_state.into_inner(), transport.into_inner(), client.into_inner());
+		return Ok(())
 	}
 	
 	if let Some(reason) = client.disconnect_reason() {
-		on_disconnect(DisconnectReason::Client(reason), next_state, transport.into_inner(), client.into_inner());
-		return
+		on_disconnect(DisconnectReason::Client(reason), next_state.into_inner(), transport.into_inner(), client.into_inner());
+		return Ok(())
 	}
 	
 	if transport.is_connected() {
-		println!("Connected to server.");
-		next_state.set(GameState::WorldSelect)
+		if connection_established.is_none() {
+			commands.init_resource::<ConnectionEstablished>();
+			println!("Connection established");
+			send_message!(client, DefaultChannel::ReliableOrdered, protocol::ClientMessage::JoinRequest { protocol_ver: protocol::PROTOCOL_VER });
+		} else {
+			if let Some(buf) = client.receive_message(DefaultChannel::ReliableOrdered) {
+				let message = util::deserialize::<protocol::Message>(&buf)?;
+				match message {
+					protocol::Message::ServerMessage(message) => {
+						match message {
+							ServerMessage::Disconnect(reason) => on_disconnect(DisconnectReason::Disconnected(reason), next_state.into_inner(), transport.into_inner(), client.into_inner()),
+							_ => warn!("Unexpected message from server: {:?}", message)
+						}
+					}
+					protocol::Message::ServerResponse(response) => {
+						match response {
+							ServerResponse::JoinAccept => next_state.set(GameState::WorldSelect),
+							ServerResponse::JoinDeny(reason) => on_disconnect(DisconnectReason::Disconnected(reason), next_state.into_inner(), transport.into_inner(), client.into_inner()),
+							_ => warn!("Unexpected message from server: {:?}", response)
+						}
+					}
+					_ => warn!("Received incorrect/client message from server: {:?}", message)
+				}
+			}
+		}
 	}
+	
+	Ok(())
 }
 
 fn client(
@@ -162,45 +206,46 @@ fn client(
 	mut transport: ResMut<NetcodeClientTransport>,
 	mut commands: Commands,
 	next_state: ResMut<NextState<GameState>>,
-) {
+) -> Result<(), NetworkError> {
 	if let Some(reason) = transport.disconnect_reason() {
-		on_disconnect(DisconnectReason::Transport(reason), next_state, transport.into_inner(), client.into_inner());
-		return
+		on_disconnect(DisconnectReason::Transport(reason), next_state.into_inner(), transport.into_inner(), client.into_inner());
+		return Ok(())
 	}
 	
 	if let Some(reason) = client.disconnect_reason() {
-		on_disconnect(DisconnectReason::Client(reason), next_state, transport.into_inner(), client.into_inner());
-		return
+		on_disconnect(DisconnectReason::Client(reason), next_state.into_inner(), transport.into_inner(), client.into_inner());
+		return Ok(())
 	}
 	
 	for channel_id in 0..=2 {
 		while let Some(buf) = client.receive_message(channel_id) {
-			let message = util::deserialize::<protocol::Message>(&buf);
-			if let Ok(message) = message {
-				match message {
-					protocol::Message::ServerMessage(message) => {
-						commands.spawn(message);
-					}
-					protocol::Message::ServerResponse(response) => {
-						commands.spawn(response);
-					}
-					_ => warn!("Received client message from server: {:?}", message),
+			let message = util::deserialize::<protocol::Message>(&buf)?;
+			match message {
+				protocol::Message::ServerMessage(message) => {
+					commands.spawn(message);
 				}
+				protocol::Message::ServerResponse(response) => {
+					commands.spawn(response);
+				}
+				_ => warn!("Received incorrect/client message from server: {:?}", message),
 			}
 		}
 	}
+	
+	Ok(())
 }
 
 fn server_message(
-	message_query: Query<&ServerMessage>,
+	message_query: Query<(Entity, &ServerMessage)>,
 	mut client: ResMut<RenetClient>,
 	mut commands: Commands,
-) {
-	for message in message_query.iter() {
+) -> Result<(), NetworkError> {
+	for (entity, message) in message_query.iter() {
+		commands.entity(entity).despawn();
+		println!("{:?}", message);
 		match message {
 			ServerMessage::Ping { timestamp } => {
-				let message = util::serialize(&protocol::Message::ClientResponse(protocol::ClientResponse::PingAck { timestamp: *timestamp })).unwrap();
-				client.send_message(0, message);
+				send_message!(client, 0, protocol::ClientResponse::PingAck { timestamp: *timestamp });
 			}
 			ServerMessage::ChatMessage(chat_message) => {
 				commands.spawn(chat_message.clone());
@@ -212,17 +257,21 @@ fn server_message(
 			_ => {}
 		}
 	}
+	
+	Ok(())
 }
 
 fn server_response(
-	response_query: Query<&ServerResponse>,
+	response_query: Query<(Entity, &ServerResponse)>,
 	mut next_state: ResMut<NextState<GameState>>,
 	mut commands: Commands,
-) {
-	for response in response_query.iter() {
+) -> Result<(), NetworkError> {
+	for (entity, response) in response_query.iter() {
+		commands.entity(entity).despawn();
+		println!("{:?}", response);
 		match response {
 			ServerResponse::PingAck { timestamp } => {
-				let ping = (time_since_epoch().as_millis() - timestamp) as u32;
+				let ping = time_since_epoch().as_millis() - timestamp;
 				commands.insert_resource(Ping(ping));
 			}
 			ServerResponse::EnterWorldAccept => next_state.set(GameState::LoadingWorld),
@@ -230,15 +279,17 @@ fn server_response(
 			_ => {}
 		}
 	}
+	
+	Ok(())
 }
 
 pub fn send_chat(
 	mut client: ResMut<RenetClient>,
 	target: Target,
 	message: String,
-) {
-	let message = protocol::Message::ClientMessage(protocol::ClientMessage::ChatMessage(target, message));
-	client.send_message(0, util::serialize(&message).unwrap());
+) -> Result<(), NetworkError> {
+	send_message!(client, 0, protocol::ClientMessage::ChatMessage(target, message));
+	Ok(())
 }
 
 pub fn disconnect(reason: DisconnectReason, transport: &mut NetcodeClientTransport, client: &mut RenetClient, disconnect_client: bool) {
@@ -249,7 +300,7 @@ pub fn disconnect(reason: DisconnectReason, transport: &mut NetcodeClientTranspo
 	println!("Disconnected.\nReason: {}", reason);
 }
 
-fn on_disconnect(reason: DisconnectReason, mut next_state: ResMut<NextState<GameState>>, transport: &mut NetcodeClientTransport, client: &mut RenetClient) {
+fn on_disconnect(reason: DisconnectReason, next_state: &mut NextState<GameState>, transport: &mut NetcodeClientTransport, client: &mut RenetClient) {
 	disconnect(reason, transport, client, false);
 	next_state.set(GameState::TitleScreen); // todo: disconnect screen
 }

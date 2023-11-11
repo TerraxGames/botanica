@@ -12,6 +12,7 @@ pub mod protocol;
 pub mod client;
 pub mod server;
 pub mod debug;
+pub mod error;
 
 pub const USERNAME_BYTES: usize = 32;
 
@@ -29,14 +30,14 @@ pub enum DisconnectReason {
 }
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Component, Resource)]
-pub struct Ping(pub u32);
+pub struct Ping(pub u128);
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Component, Resource)]
 pub struct Username(pub String);
 
 impl fmt::Display for Username {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-		fmt::Debug::fmt(self, f)
+		f.write_fmt(format_args!("{}", self.0))
 	}
 }
 
@@ -68,4 +69,41 @@ impl Username {
 #[inline]
 pub fn time_since_epoch() -> Duration {
 	SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap()
+}
+
+pub(crate) mod stats {
+	use std::collections::HashMap;
+	
+	use bevy::prelude::Resource;
+	
+	use crate::networking::protocol::ClientId;
+	
+	/// A player's network statistics
+	#[derive(Debug, Default, Clone)]
+	pub struct PlayerNetStat {
+		/// The player's latency in milliseconds
+		pub ping: u128,
+	}
+	
+	#[derive(Debug, Default, Clone, Resource)]
+	pub struct PlayerNetStats(HashMap<ClientId, PlayerNetStat>);
+	
+	impl PlayerNetStats {
+		/// Retrieves an optional network statistics struct that corresponds to the client ID.
+		pub fn get(&self, client_id: ClientId) -> Option<&PlayerNetStat> {
+			self.0.get(&client_id)
+		}
+		
+		/// Retrieves (or creates if non-existent) a mutable network statistics struct that corresponds to the client ID.
+		pub fn get_mut(&mut self, client_id: ClientId) -> &mut PlayerNetStat {
+			self.0
+				.entry(client_id)
+				.or_default()
+		}
+		
+		/// Removes the network statistics struct from the hash map. Returns Some with the removed network statistics struct if successful, None if non-existent.
+		pub fn remove(&mut self, client_id: ClientId) -> Option<PlayerNetStat> {
+			self.0.remove(&client_id)
+		}
+	}
 }

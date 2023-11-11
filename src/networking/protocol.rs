@@ -1,8 +1,13 @@
+use std::fmt;
+use std::fmt::Formatter;
+
 use bevy::prelude::*;
+use renet::Bytes;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{TilePos, Username};
+use crate::{TilePos, Username, util};
+use crate::networking::error::NetworkError;
 use crate::player::{Source, Target};
 
 pub const PROTOCOL_ID: u64 = 0x460709E200F3661E;
@@ -12,6 +17,12 @@ pub const CLIENT_TIMEOUT: u64 = 5000;
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct ProtocolVersion(pub u32);
 
+impl fmt::Display for ProtocolVersion {
+	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+		fmt::Debug::fmt(self, f)
+	}
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 /// A type of message.
 pub enum Message {
@@ -19,6 +30,18 @@ pub enum Message {
 	ServerResponse(ServerResponse),
 	ClientMessage(ClientMessage),
 	ClientResponse(ClientResponse),
+}
+
+macro_rules! impl_try_into_bytes {
+    ($t:ident) => {
+		impl TryInto<Bytes> for $t {
+			type Error = NetworkError;
+			
+			fn try_into(self) -> Result<Bytes, Self::Error> {
+				Ok(util::serialize(&Message::$t(self))?.into())
+			}
+		}
+	};
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Component)]
@@ -38,16 +61,19 @@ pub enum ServerMessage {
 	PlayerPosition(ClientId, TilePos),
 }
 
+impl_try_into_bytes!(ServerMessage);
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Component)]
 /// A message that the server sends to a client in response to a message from that client.
 pub enum ServerResponse {
 	JoinDeny(DisconnectReason),
 	JoinAccept,
-	Query {
+	Query { // todo: move to REST API
 		/// The protocol version.
 		protocol_ver: ProtocolVersion,
 		/// The game version string.
 		version: String,
+		/// The message of the day.
 		motd: String,
 	},
 	PingAck {
@@ -57,6 +83,8 @@ pub enum ServerResponse {
 	EnterWorldDeny(WorldDenyReason),
 	EnterWorldAccept,
 }
+
+impl_try_into_bytes!(ServerResponse);
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Component)]
 /// A message that the client sends to the server.
@@ -75,6 +103,8 @@ pub enum ClientMessage {
 	PlayerPosition(TilePos),
 }
 
+impl_try_into_bytes!(ClientMessage);
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Bundle)]
 pub struct ClientMessageBundle {
 	pub id: ClientId,
@@ -90,6 +120,8 @@ pub enum ClientResponse {
 		timestamp: u128,
 	},
 }
+
+impl_try_into_bytes!(ClientResponse);
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Bundle)]
 pub struct ClientResponseBundle {
@@ -137,6 +169,18 @@ pub struct PlayerData {
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Component)]
 pub struct ClientId(pub u64);
+
+impl Into<u64> for ClientId {
+	fn into(self) -> u64 {
+		self.0
+	}
+}
+
+impl Into<u64> for &ClientId {
+	fn into(self) -> u64 {
+		self.0
+	}
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Component)]
 pub struct ChatMessageContent(pub String);

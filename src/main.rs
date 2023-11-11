@@ -39,6 +39,8 @@ mod state;
 
 pub const NAMESPACE: &'static str = "botanica";
 
+pub const VERSION_STRING: &'static str = "0.1.0-alpha";
+
 pub const DEFAULT_LOCALE: &'static str = "en_us";
 
 /// Whether the dedicated server is headless.
@@ -108,6 +110,7 @@ pub fn main() {
 		.add_state::<GameState>()
 		.add_plugins(DefaultPlugins)
 		.add_plugins((EguiPlugin, NetworkingDebugPlugin))
+		.init_resource::<networking::stats::PlayerNetStats>()
 		.insert_resource(env)
 		.insert_resource(headless)
 		.init_resource::<loading::AssetsLoading>()
