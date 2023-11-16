@@ -6,7 +6,6 @@ use bevy::asset::{AssetIo, AssetIoError};
 use bevy::ecs::archetype::Archetypes;
 use bevy::ecs::component::ComponentId;
 use bevy::prelude::*;
-use bevy_egui::egui::TextBuffer;
 use bevy_egui::EguiPlugin;
 use serde::{Deserialize, Serialize};
 
@@ -94,15 +93,15 @@ impl Default for GameState {
 	}
 }
 
-#[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash, Component)]
-pub struct TilePos(pub u64, pub u64);
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Component)]
+pub struct TilePos(pub i32, pub i32);
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Component)]
-pub struct Position(pub f64, pub f64);
+pub struct Position(pub f32, pub f32);
 
 pub fn main() {
 	let env = EnvType::try_from(std::env::var("ENVIRONMENT").unwrap_or("client".to_string())).unwrap(); // todo: force EnvType environment variable
-	let headless = Headless(std::env::args().find(|s| s.as_str() == "--headless").is_some()); // todo: finish headless server feature
+	let headless = Headless(std::env::args().find(|s| s.as_str() == "--headless").is_some());
 	let username = Username(std::env::args().find(|s| s.as_str().starts_with("--username=")).unwrap_or("Player".to_owned()));
 	
 	let mut app = App::new();
@@ -181,45 +180,6 @@ pub fn get_components_for_entity<'a>(
 	None
 }
 
-/// # Safety
-/// When calling this function, you must guarantee that the following criteria are met:
-/// 
-/// * This is a unique mutable pointer to the component.
-pub unsafe fn mut_component_for_entity<'a, C>(
-	entity: &Entity,
-	world: &World,
-) -> Option<&'a mut C> where C: Component {
-	let components = get_components_for_entity(entity, world.archetypes());
-	let mut component: Option<&'a mut C> = None;
-	
-	for component_id in components.expect("No components found for entity") {
-		let info = world.components().get_info(component_id).unwrap();
-		if info.type_id().unwrap() == TypeId::of::<C>() {
-			for table in world.storages().tables.iter() {
-				if let Some(column) = table.get_column(component_id) {
-					// SAFETY: the caller must guarantee that rust mutability rules aren't violated
-					let mut ptr = column.get_data_ptr().as_ptr().cast::<C>();
-					let val = unsafe { ptr.as_mut() };
-					component = val;
-				}
-			}
-		}
-	}
-	
-	component
-}
-
-pub fn component_for_entity<'a, C>(
-	entity: &Entity,
-	world: &World,
-) -> Option<&'a C> where C: Component {
-	// SAFE: this is a shared reference, so we can ignore rust mutability rules
-	if let Some(component) = unsafe { mut_component_for_entity(entity, world) } {
-		return Some(component);
-	}
-	None
-}
-
 /// Loads the bytes of an asset
 pub async fn load_asset_bytes(
 	path: String,
@@ -229,5 +189,5 @@ pub async fn load_asset_bytes(
 }
 
 fn id(id: &str) -> Identifier {
-	Identifier::new(NAMESPACE, id)
+	Identifier::from_str(NAMESPACE, id)
 }

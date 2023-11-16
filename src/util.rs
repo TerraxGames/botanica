@@ -127,7 +127,7 @@ macro_rules! trait_enforce {
     ($param:expr, $($ty:path),+) => {
 		{
 			$(
-				fn enforce<T>(t: &T)
+				fn enforce<T>(_t: &T)
 				where T: $ty
 				{}
 				

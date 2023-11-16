@@ -11,9 +11,9 @@ pub struct TileBundle {
 }
 
 impl<'a> TileBundle {
-	pub fn new(identifier: Identifier, registry: Registry<'a, TileDef<'a>>) -> Self {
+	pub fn new(identifier: &Identifier, registry: &Registry<TileDef>) -> Self {
 		Self {
-			raw_id: RawId(registry.get_id_hash(identifier)),
+			raw_id: registry.get_raw_id(identifier),
 		}
 	}
 

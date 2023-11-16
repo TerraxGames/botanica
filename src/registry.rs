@@ -2,17 +2,19 @@ use std::collections::HashMap;
 use std::hash::{BuildHasher, Hash, Hasher};
 
 use crate::identifier::Identifier;
+use crate::raw_id::RawId;
 use crate::registry::def::Definition;
 
 pub mod tile;
 pub mod def;
+pub mod error;
 
 #[derive(Default)]
-pub struct Registry<'a, T> where T : Definition<'a> {
-	items: HashMap<Identifier<'a>, T>,
+pub struct Registry<T> where T : Definition {
+	items: HashMap<RawId, T>,
 }
 
-impl<'a, T> Registry<'a, T> where T : Definition<'a> {
+impl<T> Registry<T> where T : Definition {
 	pub fn new() -> Self {
 		Self {
 			items: HashMap::new(),
@@ -21,18 +23,23 @@ impl<'a, T> Registry<'a, T> where T : Definition<'a> {
 
 	/// Registers a `T` in the `Registry<T>` with its given `Identifier`.
 	pub fn register(&mut self, item: T) {
-		self.items.insert(item.identifier(), item);
+		self.items.insert(self.get_raw_id(item.identifier()), item);
 	}
 
 	/// Returns a `&T` of the given `Identifier`.
-	pub fn get(&self, id: Identifier<'a>) -> Option<&T> {
-		self.items.get(&id)
+	pub fn get(&self, id: &Identifier) -> Option<&T> {
+		self.items.get(&self.get_raw_id(id))
 	}
 
 	/// Returns a hash of the `Identifier`.
-	pub fn get_id_hash(&self, id: Identifier<'a>) -> u64 {
+	pub fn get_id_hash(&self, id: &Identifier) -> u64 {
 		let mut hasher = self.items.hasher().build_hasher();
 		id.hash(&mut hasher);
 		hasher.finish()
+	}
+
+	/// Returns the raw ID (in the form of a hash) of the `Identifier`
+	pub fn get_raw_id(&self, id: &Identifier) -> RawId {
+		RawId(self.get_id_hash(id))
 	}
 }

@@ -15,14 +15,14 @@
 	"ui.world_select.button.cancel": "Cancel",
 
 	// Blocks
-	"tile.name.dirt": "Dirt",
-	"tile.name.grass": "Grass",
-	"tile.name.grass_plant": "Grass",
-	"tile.name.stone": "Stone",
+	"botanica:tile.name.dirt": "Dirt",
+	"botanica:tile.name.grass": "Grass",
+	"botanica:tile.name.grass_plant": "Grass",
+	"botanica:tile.name.stone": "Stone",
 
 	// Items
 	//  Seeds
-	"item.name.dirt_seed": "Dirt Seed",
-	"item.name.grass_plant_seed": "Grass Seed",
-	"item.name.stone_seed": "Stone Seed",
+	"botanica:item.name.dirt_seed": "Dirt Seed",
+	"botanica:item.name.grass_plant_seed": "Grass Seed",
+	"botanica:item.name.stone_seed": "Stone Seed",
 }

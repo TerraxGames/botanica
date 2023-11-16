@@ -1,5 +1,5 @@
 use crate::identifier::Identifier;
 
-pub trait Definition<'a> {
-	fn identifier(&self) -> Identifier<'a>;
+pub trait Definition {
+	fn identifier(&self) -> &Identifier;
 }

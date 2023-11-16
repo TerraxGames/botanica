@@ -1,0 +1,102 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug Client",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=botanica",
+                    "--package=botanica"
+                ],
+                "filter": {
+                    "name": "botanica",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "env": {
+                "ENVIRONMENT": "client",
+                "CARGO_MANIFEST_DIR": "${workspaceFolder}"
+            },
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in Client",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=botanica",
+                    "--package=botanica"
+                ],
+                "filter": {
+                    "name": "botanica",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "env": {
+                "ENVIRONMENT": "client",
+                "CARGO_MANIFEST_DIR": "${workspaceFolder}"
+            },
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug Headless Server",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=botanica",
+                    "--package=botanica"
+                ],
+                "filter": {
+                    "name": "botanica",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "--headless"
+            ],
+            "env": {
+                "ENVIRONMENT": "server",
+                "CARGO_MANIFEST_DIR": "${workspaceFolder}"
+            },
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in Headless Server",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=botanica",
+                    "--package=botanica"
+                ],
+                "filter": {
+                    "name": "botanica",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "--headless"
+            ],
+            "env": {
+                "ENVIRONMENT": "server",
+                "CARGO_MANIFEST_DIR": "${workspaceFolder}"
+            },
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

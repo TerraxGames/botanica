@@ -1,18 +1,53 @@
 use bevy::prelude::{Assets, AssetServer, Handle, Res};
+use serde::de::Visitor;
+use serde::Deserialize;
 
 use crate::asset::locale::LocaleAsset;
 use crate::asset::parse_namespaced;
 
+#[derive(Debug)]
 pub struct Translatable {
 	key: String,
-	translated: Option<String>,
+}
+
+impl<'de> Deserialize<'de> for Translatable {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de> {
+		struct StringVisitor;
+
+		impl<'de> Visitor<'de> for StringVisitor {
+			type Value = Translatable;
+
+			fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+				formatter.write_str("String")
+			}
+			
+			fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
+				where
+					E: serde::de::Error, {
+				Ok(
+					Translatable {
+						key: v,
+					}
+				)
+			}
+		}
+		
+        deserializer.deserialize_string(StringVisitor)
+    }
 }
 
 impl Translatable {
-	pub fn new(key: &str) -> Self {
+	pub fn new(key: String) -> Self {
 		Self {
-			key: String::from(key),
-			translated: None,
+			key,
+		}
+	}
+
+	pub fn from_str(key: &str) -> Self {
+		Self {
+			key: key.to_string(),
 		}
 	}
 
@@ -20,31 +55,7 @@ impl Translatable {
 		self.key.as_str()
 	}
 
-	pub fn translated(&self) -> Option<&String> {
-		match &self.translated {
-			Some(translated) => Some(&translated),
-			_ => None,
-		}
-	}
-
-	/// Translates the `Translatable` if it isn't already, otherwise returning a cached translation.<br>
-	/// `locale` - The locale string identifier of which the translation is in.<br>
-	/// `asset_server` - The `Res<AssetServer>` from which to load the translation from.<br>
-	/// `locale_assets` - The `Res<Assets<LocaleAsset>>` from which to retrieve the asset from.<br>
-	/// ***Note:** This method requires that the `locale` folder be loaded *before* calling.*
-	pub fn translate(&self,
-	                 locale: &str,
-	                 asset_server: &Res<AssetServer>,
-	                 locale_assets: &Res<Assets<LocaleAsset>>,
-	) -> String {
-		if let Some(translated) = self.translated() {
-			translated.clone()
-		} else {
-			Translatable::translate_once(self.key.as_str(), locale, asset_server, locale_assets)
-		}
-	}
-
-	/// Translates the `&str` translation key once.,<br>
+	/// Translates the `&str` translation key once.<br>
 	/// `key` - The namespaced translation key.<br>
 	/// `locale` - The locale string identifier of which the translation is in.<br>
 	/// `asset_server` - The `Res<AssetServer>` from which to load the translation from.<br>
