@@ -221,6 +221,7 @@ fn client_message(
 			ClientMessage::EnterWorldRequest(_world_name) => {
 				let response = protocol::ServerResponse::EnterWorldAccept; // todo: deny joining worlds?
 				send_message!(server, client_id.0, DefaultChannel::ReliableOrdered, response);
+				// todo: open world and send tiles
 			}
 			ClientMessage::ChatMessage(target, content) => {
 				let chat_message = ChatMessageBundle {

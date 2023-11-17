@@ -7,7 +7,6 @@ use crate::registry::def::Definition;
 
 pub mod tile;
 pub mod def;
-pub mod error;
 
 #[derive(Default)]
 pub struct Registry<T> where T : Definition {

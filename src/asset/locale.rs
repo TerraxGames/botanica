@@ -14,7 +14,7 @@ pub struct LocaleAsset {
 
 impl LocaleAsset {
 	pub fn translate(self, key: &str) -> String {
-		self.locale.get(key).expect(format!("Failed to find translation for {} in locale {}", key, self.locale_string).as_str()).clone()
+		self.locale.get(key).expect(format!("failed to find translation for {} in locale {}", key, self.locale_string).as_str()).clone() // todo: turn into Result
 	}
 }
 

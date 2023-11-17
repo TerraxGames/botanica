@@ -33,16 +33,19 @@ fn load_assets(
 	asset_server: Res<AssetServer>,
 	mut loading: ResMut<AssetsLoading>,
 ) {
-	println!("Loading assets.");
+	println!("Loading assets");
 	
 	// load all locale files
-	let locale = asset_server.load_folder(from_asset_loc(NAMESPACE, "locale")).expect("Failed to find locale folder.");
-	let fonts = asset_server.load_folder(from_asset_loc(NAMESPACE, "fonts")).expect("Failed to find fonts folder.");
+	let locale = asset_server.load_folder(from_asset_loc(NAMESPACE, "locale")).expect(format!("locale folder should be present in assets/{}", NAMESPACE).as_str());
+	// load all fonts
+	let fonts = asset_server.load_folder(from_asset_loc(NAMESPACE, "fonts")).expect(format!("fonts folder should be present in assets/{}", NAMESPACE).as_str());
 	// load all textures
-	let textures = asset_server.load_folder(from_asset_loc(NAMESPACE, "textures")).expect("Failed to find textures folder.");
+	let textures = asset_server.load_folder(from_asset_loc(NAMESPACE, "textures")).expect(format!("textures folder should be present in assets/{}", NAMESPACE).as_str());
+	// load all tiles
+	let tiles = asset_server.load_folder(from_asset_loc(NAMESPACE, "tiles")).expect(format!("tiles folder should be present in assets/{}", NAMESPACE).as_str());
 	
 	// add all assets to tracker
-	for folder in [locale, fonts, textures] {
+	for folder in [locale, fonts, textures, tiles] {
 		for handle in folder {
 			loading.assets.push(handle.clone());
 		}
@@ -59,7 +62,7 @@ fn check_assets_ready(
 		let load_state = asset_server.get_load_state(handle.id());
 		match load_state {
 			LoadState::Failed => {
-				let path = asset_server.get_handle_path(handle.id()).expect("Failed to get path of asset handle");
+				let path = asset_server.get_handle_path(handle.id()).expect(format!("expected asset handle (ID {:?}) to have path", handle.id()).as_str());
 				warn!("Failed to load asset at \"{:?}\"", path.path());
 			},
 			_ => {},
@@ -68,7 +71,7 @@ fn check_assets_ready(
 	
 	match asset_server.get_group_load_state(loading.assets.iter().map(|handle| handle.id())) {
 		LoadState::Loaded => {
-			println!("Assets loaded.");
+			println!("Assets finished loading");
 			
 			loading.finished = true;
 			

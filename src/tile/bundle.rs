@@ -1,9 +1,9 @@
 use bevy::prelude::*;
 
+use crate::asset::tile::TileDef;
 use crate::identifier::Identifier;
 use crate::raw_id::RawId;
 use crate::registry::Registry;
-use crate::registry::tile::TileDef;
 
 #[derive(Bundle)]
 pub struct TileBundle {

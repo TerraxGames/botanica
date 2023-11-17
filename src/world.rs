@@ -1,6 +1,8 @@
 use std::collections::HashMap;
+use std::hash::{BuildHasher, Hasher};
 
 use bevy::prelude::*;
+use bevy::utils::label::DynHash;
 use serde::{Deserialize, Serialize};
 
 use crate::networking::protocol::ClientId;
@@ -31,6 +33,14 @@ impl GameWorlds {
 	
 	pub fn get_world_mut_from_name(&mut self, world_name: &str) -> Option<&mut GameWorld> {
 		self.1.get_mut(&self.get_world_id(world_name)?)
+	}
+	
+	pub fn add_world(&mut self, world_name: String, world: GameWorld) {
+		let mut hasher = self.0.hasher().build_hasher();
+		world_name.dyn_hash(&mut hasher);
+		let id = WorldId(hasher.finish());
+		self.0.insert(world_name, id);
+		self.1.insert(id, world);
 	}
 }
 

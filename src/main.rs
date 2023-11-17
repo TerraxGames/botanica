@@ -69,10 +69,12 @@ pub fn is_headless(headless: Headless) -> bool {
 	headless.0
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, States)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, States, Default)]
 pub enum GameState {
-	// Client
+	#[default]
 	Loading,
+	
+	// Client
 	/// The splash screen displaying "made with Bevy".
 	BevySplash,
 	TitleScreen,
@@ -85,12 +87,6 @@ pub enum GameState {
 	// Server
 	ServerLoading,
 	ServerLoaded,
-}
-
-impl Default for GameState {
-	fn default() -> Self {
-		Self::Loading
-	}
 }
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Component)]
