@@ -1,11 +1,15 @@
+use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Formatter;
+use std::time::SystemTime;
 
 use bevy::prelude::*;
 use renet::Bytes;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::tile::WorldTile;
+use crate::world::WorldBanUntil;
 use crate::{TilePos, Username};
 use crate::networking::error::NetworkError;
 use crate::player::{Source, Target};
@@ -23,7 +27,7 @@ impl fmt::Display for ProtocolVersion {
 	}
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 /// A type of message.
 pub enum Message {
 	ServerMessage(ServerMessage),
@@ -44,7 +48,7 @@ macro_rules! impl_try_into_bytes {
 	};
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Component)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Component)]
 /// A message that the server sends to a client (or to all/some clients).
 pub enum ServerMessage {
 	Ping {
@@ -59,11 +63,12 @@ pub enum ServerMessage {
 	PlayerNick(ClientId, String),
 	ChatMessage(ChatMessageBundle),
 	PlayerPosition(ClientId, TilePos),
+	WorldTiles(HashMap<TilePos, WorldTile>),
 }
 
 impl_try_into_bytes!(ServerMessage);
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Component)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Component)]
 /// A message that the server sends to a client in response to a message from that client.
 pub enum ServerResponse {
 	JoinDeny(DisconnectReason),
@@ -86,7 +91,7 @@ pub enum ServerResponse {
 
 impl_try_into_bytes!(ServerResponse);
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Component)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Component)]
 /// A message that the client sends to the server.
 pub enum ClientMessage {
 	JoinRequest {
@@ -105,13 +110,13 @@ pub enum ClientMessage {
 
 impl_try_into_bytes!(ClientMessage);
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Bundle)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Bundle)]
 pub struct ClientMessageBundle {
 	pub id: ClientId,
 	pub message: ClientMessage,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Component)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Component)]
 /// A message that the client sends to the server in response to a message the server sent.
 pub enum ClientResponse {
 	QueryAck,
@@ -123,7 +128,7 @@ pub enum ClientResponse {
 
 impl_try_into_bytes!(ClientResponse);
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Bundle)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Bundle)]
 pub struct ClientResponseBundle {
 	pub id: ClientId,
 	pub response: ClientResponse,
@@ -140,6 +145,8 @@ pub enum DisconnectReason {
 	},
 	#[error("The userdata field is empty!")]
 	EmptyUserdata,
+	#[error("The player's data is non-existent!")]
+	PlayerNonexistent,
 	#[error("Server is full: {0}")]
 	ServerFull(String),
 	#[error("Kicked: {0}")]
@@ -158,7 +165,7 @@ pub enum DisconnectReason {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Component)]
 pub enum WorldDenyReason {
 	WorldFull(String),
-	Banned(String),
+	Banned(String, WorldBanUntil),
 	Other(Option<String>),
 }
 

@@ -13,7 +13,7 @@ pub struct TileBundle {
 impl<'a> TileBundle {
 	pub fn new(identifier: &Identifier, registry: &Registry<TileDef>) -> Self {
 		Self {
-			raw_id: registry.get_raw_id(identifier),
+			raw_id: registry.get_raw_id(identifier).unwrap(),
 		}
 	}
 

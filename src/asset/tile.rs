@@ -41,9 +41,9 @@ impl TileDef {
 }
 
 impl Definition for TileDef {
-	fn identifier(&self) -> &Identifier {
-		&self.identifier
-	}
+    fn identifier(&self) -> &Identifier {
+        &self.identifier
+    }
 }
 
 pub struct TileDefLoader;

@@ -5,21 +5,21 @@ use regex::Regex;
 
 pub mod sanitize;
 
-static OPTIONS_BE: Lazy<WithOtherTrailing<WithOtherEndian<WithOtherIntEncoding<DefaultOptions, FixintEncoding>, BigEndian>, RejectTrailing>> = Lazy::new(|| {
+pub static OPTIONS_BE: Lazy<WithOtherTrailing<WithOtherEndian<WithOtherIntEncoding<DefaultOptions, FixintEncoding>, BigEndian>, RejectTrailing>> = Lazy::new(|| {
 	DefaultOptions::new()
 		.with_fixint_encoding()
 		.with_big_endian()
 		.reject_trailing_bytes()
 });
 
-static OPTIONS_LE: Lazy<WithOtherTrailing<WithOtherEndian<WithOtherIntEncoding<DefaultOptions, FixintEncoding>, LittleEndian>, RejectTrailing>> = Lazy::new(|| {
+pub static OPTIONS_LE: Lazy<WithOtherTrailing<WithOtherEndian<WithOtherIntEncoding<DefaultOptions, FixintEncoding>, LittleEndian>, RejectTrailing>> = Lazy::new(|| {
 	DefaultOptions::new()
 		.with_fixint_encoding()
 		.with_little_endian()
 		.reject_trailing_bytes()
 });
 
-static OPTIONS_TRAILING: Lazy<WithOtherTrailing<WithOtherEndian<WithOtherIntEncoding<DefaultOptions, FixintEncoding>, BigEndian>, AllowTrailing>> = Lazy::new(|| {
+pub static OPTIONS_TRAILING: Lazy<WithOtherTrailing<WithOtherEndian<WithOtherIntEncoding<DefaultOptions, FixintEncoding>, BigEndian>, AllowTrailing>> = Lazy::new(|| {
 	DefaultOptions::new()
 		.with_fixint_encoding()
 		.with_big_endian()
