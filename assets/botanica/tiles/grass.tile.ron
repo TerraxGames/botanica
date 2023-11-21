@@ -1,3 +1,4 @@
 TileDef(
-	hardness: 0.6,
+	hardness: 0.4,
+	salience: fg,
 )

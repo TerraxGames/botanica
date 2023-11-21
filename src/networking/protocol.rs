@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Formatter;
-use std::time::SystemTime;
 
 use bevy::prelude::*;
 use renet::Bytes;
@@ -166,6 +165,7 @@ pub enum DisconnectReason {
 pub enum WorldDenyReason {
 	WorldFull(String),
 	Banned(String, WorldBanUntil),
+	InvalidWorldName,
 	Other(Option<String>),
 }
 

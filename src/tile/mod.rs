@@ -1,19 +1,18 @@
-use serde::{Deserialize, Serialize};
-use bevy::prelude::Component;
-use crate::{raw_id::RawId, identifier::Identifier, registry::tile::TileRegistry};
+use bevy::prelude::*;
+use serde::{Serialize, Deserialize};
 
-pub mod bundle;
+use crate::{raw_id::{RawId, tile::RawTileIds}, identifier::Identifier};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WorldTile(pub RawId, pub TileData);
 
 impl WorldTile {
-	pub fn new_data(id: &Identifier, registry: &TileRegistry, data: TileData) -> Option<Self> {
-		Some(Self(registry.get_raw_id(id)?, data))
+	pub fn new_data(id: &Identifier, raw_tile_ids: &RawTileIds, data: TileData) -> Option<Self> {
+		Some(Self(raw_tile_ids.get_raw_id(id)?, data))
 	}
 	
-	pub fn new(id: &Identifier, registry: &TileRegistry) -> Option<Self> {
-		WorldTile::new_data(id, registry, TileData(0))
+	pub fn new(id: &Identifier, raw_tile_ids: &RawTileIds) -> Option<Self> {
+		WorldTile::new_data(id, raw_tile_ids, TileData(0))
 	}
 }
 

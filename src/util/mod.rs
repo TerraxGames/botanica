@@ -4,6 +4,7 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 
 pub mod sanitize;
+pub mod tilehub;
 
 pub static OPTIONS_BE: Lazy<WithOtherTrailing<WithOtherEndian<WithOtherIntEncoding<DefaultOptions, FixintEncoding>, BigEndian>, RejectTrailing>> = Lazy::new(|| {
 	DefaultOptions::new()

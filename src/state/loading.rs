@@ -41,11 +41,13 @@ fn load_assets(
 	let fonts = asset_server.load_folder(from_asset_loc(NAMESPACE, "fonts")).expect(format!("fonts folder should be present in assets/{}", NAMESPACE).as_str());
 	// load all textures
 	let textures = asset_server.load_folder(from_asset_loc(NAMESPACE, "textures")).expect(format!("textures folder should be present in assets/{}", NAMESPACE).as_str());
+	// load raw ids
+	let ids = asset_server.load_folder(from_asset_loc(NAMESPACE, "ids")).expect(format!("ids folder should be present in assets/{}", NAMESPACE).as_str());
 	// load all tiles
 	let tiles = asset_server.load_folder(from_asset_loc(NAMESPACE, "tiles")).expect(format!("tiles folder should be present in assets/{}", NAMESPACE).as_str());
 	
 	// add all assets to tracker
-	for folder in [locale, fonts, textures, tiles] {
+	for folder in [locale, fonts, textures, ids, tiles] {
 		for handle in folder {
 			loading.assets.push(handle.clone());
 		}
@@ -58,12 +60,14 @@ fn check_assets_ready(
 	mut loading: ResMut<AssetsLoading>,
 	env: Res<EnvType>,
 ) {
+	let path_expect = "asset handle should have path";
+	
 	for handle in loading.assets.iter() {
 		let load_state = asset_server.get_load_state(handle.id());
 		match load_state {
 			LoadState::Failed => {
-				let path = asset_server.get_handle_path(handle.id()).expect(format!("expected asset handle (ID {:?}) to have path", handle.id()).as_str());
-				warn!("Failed to load asset at \"{:?}\"", path.path());
+				let path = asset_server.get_handle_path(handle.id()).expect(path_expect);
+				warn!("Failed to load asset at {:?}", path.path());
 			},
 			_ => {},
 		}

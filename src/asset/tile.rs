@@ -1,7 +1,9 @@
-use bevy::{asset::{AssetLoader, LoadedAsset}, reflect::{TypeUuid, TypePath}};
-use serde::Deserialize;
+use std::collections::HashMap;
 
-use crate::{registry::{def::Definition, tile::settings::TileSettings}, identifier::Identifier, i18n::Translatable};
+use bevy::{asset::{AssetLoader, LoadedAsset}, reflect::{TypeUuid, TypePath}};
+use serde::{Deserialize, de::Visitor};
+
+use crate::{registry::{def::Definition, tile::settings::TileSettings}, identifier::Identifier, i18n::Translatable, raw_id::RawId};
 
 fn id_default() -> Identifier {
 	Identifier::from_str("null", "null")
@@ -38,27 +40,26 @@ impl TileDef {
 	pub fn name(&self) -> &Translatable {
 		&self.name
 	}
+	
+	pub fn identifier(&self) -> &Identifier {
+		&self.identifier
+	}
 }
 
-impl Definition for TileDef {
-    fn identifier(&self) -> &Identifier {
-        &self.identifier
-    }
-}
-
+#[derive(Default)]
 pub struct TileDefLoader;
 
 impl AssetLoader for TileDefLoader {
-    fn load<'a>(
-        &'a self,
-        bytes: &'a [u8],
-        load_context: &'a mut bevy::asset::LoadContext,
-    ) -> bevy::utils::BoxedFuture<'a, anyhow::Result<(), anyhow::Error>> {
-        Box::pin(async move {
+	fn load<'a>(
+		&'a self,
+		bytes: &'a [u8],
+		load_context: &'a mut bevy::asset::LoadContext,
+	) -> bevy::utils::BoxedFuture<'a, anyhow::Result<(), anyhow::Error>> {
+		Box::pin(async move {
 			let mut def: TileDef = ron::de::from_bytes(bytes)?;
-			let default_id = load_context.path().file_name().expect("file path should not terminate with \"..\"").to_string_lossy().to_string();
+			let default_id = load_context.path().file_name().expect("file path should not terminate with \"..\"").to_string_lossy().to_string().replace(".tile.ron", "");
 			let default_namespace = load_context.path().ancestors().nth(1).expect("tile definition file should be in directory \"<namespace>/tiles\"").to_string_lossy().to_string();
-			if def.identifier().id() == "null" && def.identifier().namespace() == "null" {
+			if def.identifier.id() == "null" && def.identifier.namespace() == "null" {
 				def.identifier = Identifier::new(default_namespace, default_id);
 			}
 			
@@ -66,13 +67,13 @@ impl AssetLoader for TileDefLoader {
 				def.name = Translatable::new(format!("{}:tile.name.{}", def.identifier.namespace(), def.identifier.id()));
 			}
 			
-			load_context.set_default_asset(LoadedAsset::new(def));
+			load_context.set_labeled_asset(&def.identifier.to_string(), LoadedAsset::new(def));
 			
 			Ok(())
 		})
-    }
+	}
 
-    fn extensions(&self) -> &[&str] {
-        &["tile.ron"]
-    }
+	fn extensions(&self) -> &[&str] {
+		&["tile.ron"]
+	}
 }

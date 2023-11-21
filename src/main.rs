@@ -1,12 +1,13 @@
-use std::any::TypeId;
 use std::net::{AddrParseError, SocketAddr};
 use std::str::FromStr;
 
+use asset::tile::{TileDef, TileDefLoader};
 use bevy::asset::{AssetIo, AssetIoError};
 use bevy::ecs::archetype::Archetypes;
 use bevy::ecs::component::ComponentId;
 use bevy::prelude::*;
 use bevy_egui::EguiPlugin;
+use raw_id::{RawIds, RawIdsLoader};
 use serde::{Deserialize, Serialize};
 
 use state::*;
@@ -119,8 +120,6 @@ pub fn main() {
 		app
 			.add_plugins(DefaultPlugins)
 			.add_plugins((EguiPlugin, NetworkingDebugPlugin))
-			.add_asset::<LocaleAsset>()
-			.init_asset_loader::<LocaleAssetLoader>()
 			.add_plugins(
 				(
 					menu::bevy_splash::BevySplashPlugin,
@@ -134,6 +133,14 @@ pub fn main() {
 				menu::init_ui
 			);
 	}
+	
+	app
+		.add_asset::<LocaleAsset>()
+		.init_asset_loader::<LocaleAssetLoader>()
+		.add_asset::<TileDef>()
+		.init_asset_loader::<TileDefLoader>()
+		.add_asset::<RawIds>()
+		.init_asset_loader::<RawIdsLoader>();
 	
 	if env == EnvType::Client {
 		app

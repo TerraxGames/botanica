@@ -9,7 +9,8 @@ use serde::{Serialize, Deserialize};
 use crate::TilePos;
 use crate::networking::Username;
 use crate::networking::protocol::ClientId;
-use crate::registry::tile::TileRegistry;
+use crate::raw_id::RawIds;
+use crate::raw_id::tile::RawTileIds;
 use crate::save::error::SaveError;
 use crate::save::format::WorldSave;
 use crate::save::open_or_gen_world;
@@ -19,15 +20,19 @@ use crate::tile::WorldTile;
 pub struct GameWorlds(HashMap<String, GameWorld>);
 
 impl GameWorlds {
-	pub fn get_world(&self, world_name: &str, registry: &TileRegistry) -> Option<&GameWorld> {
+	pub fn get_world(&self, world_name: &str) -> Option<&GameWorld> {
 		self.0.get(world_name)
 	}
 	
-	pub fn get_world_mut(&mut self, world_name: &str, registry: &TileRegistry) -> Result<&mut GameWorld, SaveError> {
+	pub fn get_world_mut(&mut self, world_name: &str) -> Option<&mut GameWorld> {
+		self.0.get_mut(world_name)
+	}
+	
+	pub fn get_or_gen_world_mut(&mut self, world_name: &str, raw_tile_ids: &RawTileIds) -> Result<&mut GameWorld, SaveError> {
 		if self.0.contains_key(world_name) {
 			Ok(self.0.get_mut(world_name).unwrap())
 		} else {
-			let save = open_or_gen_world(world_name, registry)?;
+			let save = open_or_gen_world(world_name, raw_tile_ids)?;
 			let world = GameWorld::new(world_name.to_string(), save);
 			self.add_world(world_name.to_string(), world);
 			Ok(self.0.get_mut(world_name).unwrap())

@@ -1,41 +1,37 @@
 use std::collections::HashMap;
-use std::hash::{BuildHasher, Hash, Hasher};
+
+use bevy::{asset::{Handle, AssetDynamic, Asset}, reflect::{TypeUuid, TypePath}};
 
 use crate::identifier::Identifier;
-use crate::raw_id::RawId;
-use crate::registry::def::Definition;
 
 pub mod tile;
 pub mod def;
 
+/// Maps identifiers to handles of a specific type.
+/// For example, this is useful when retrieving a tile definition from its identifier.
 #[derive(Default)]
-pub struct Registry<T> where T : Definition {
-	items: HashMap<RawId, T>,
-	ids: HashMap<Identifier, RawId>,
+pub struct Registry<T>
+	where T: TypeUuid + TypePath + AssetDynamic + Asset {
+	handles: HashMap<Identifier, Handle<T>>,
 }
 
-impl<T> Registry<T> where T : Definition {
+const X: &'static str = "a";
+
+impl<T> Registry<T>
+	where T: TypeUuid + TypePath + AssetDynamic + Asset {
 	pub fn new() -> Self {
 		Self {
-			items: HashMap::new(),
-			ids: HashMap::new(),
+			handles: HashMap::new(),
 		}
 	}
 	
-	/// Registers a `T` in the `Registry<T>` with its given `Identifier`.
-	pub fn register(&mut self, item: T, identifier: Identifier) {
-		let raw_id = RawId(self.ids.len() as u32);
-		self.items.insert(raw_id, item);
-		self.ids.insert(identifier, raw_id);
+	/// Registers a `Handle<T>` in the `Registry<T>` with its given `Identifier`.
+	pub fn register(&mut self, item: Handle<T>, identifier: Identifier) {
+		self.handles.insert(identifier, item);
 	}
 	
-	/// Returns a `&T` of the given `Identifier`.
-	pub fn get(&self, id: &Identifier) -> Option<&T> {
-		self.items.get(&self.get_raw_id(id)?)
-	}
-	
-	/// Returns the raw ID of the `Identifier`
-	pub fn get_raw_id(&self, id: &Identifier) -> Option<RawId> {
-		Some(*self.ids.get(id)?)
+	/// Returns a *strong* `Handle<T>` of the given `Identifier`.
+	pub fn get(&self, id: &Identifier) -> Option<Handle<T>> {
+		Some(self.handles.get(id)?.clone())
 	}
 }

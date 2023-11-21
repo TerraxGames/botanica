@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use bevy::utils::default;
 
-use crate::{save::format::WorldSave, registry::tile::TileRegistry, tile::WorldTile, TilePos};
+use crate::{save::format::WorldSave, tile::WorldTile, TilePos, raw_id::{RawIds, tile::RawTileIds}};
 
 use self::error::SaveError;
 
@@ -26,13 +26,13 @@ pub fn open_world(name: &str) -> Result<WorldSave, SaveError> {
 
 /// ## Warning
 /// You **must** ensure that the name is sanitized!
-pub fn open_or_gen_world(name: &str, registry: &TileRegistry) -> Result<WorldSave, SaveError> {
+pub fn open_or_gen_world(name: &str, raw_tile_ids: &RawTileIds) -> Result<WorldSave, SaveError> {
 	let world = open_world(name);
 	if let Err(err) = world {
 		match err {
 			SaveError::WorldNonexistent => {
 				let mut tiles = HashMap::default();
-				let grass = WorldTile::new(&crate::id("grass"), registry).unwrap();
+				let grass = WorldTile::new(&crate::id("grass"), raw_tile_ids).unwrap();
 				for x in -16..=16 {
 					tiles.insert(TilePos(x, 8), grass.clone());
 				}

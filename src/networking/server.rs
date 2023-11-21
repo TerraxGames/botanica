@@ -8,6 +8,8 @@ use renet::{Bytes, ConnectionConfig, DefaultChannel, RenetServer, ServerEvent};
 use renet::transport::{NetcodeServerTransport, ServerAuthentication};
 use serde::{Deserialize, Serialize};
 
+use crate::raw_id::RawIds;
+use crate::raw_id::tile::RawTileIds;
 use crate::registry::tile::TileRegistry;
 use crate::save::open_world;
 use crate::{env, GameState, Username, util, VERSION_STRING};
@@ -191,7 +193,7 @@ fn client_message(
 	mut server: ResMut<RenetServer>,
 	mut worlds: ResMut<GameWorlds>,
 	mut players: ResMut<Players>,
-	tile_registry: Res<TileRegistry>,
+	raw_tile_ids: Res<RawTileIds>,
 	mut player_stats: ResMut<PlayerNetStats>,
 	mut commands: Commands,
 ) -> Result<(), NetworkError> {
@@ -223,16 +225,24 @@ fn client_message(
 			}
 			ClientMessage::EnterWorldRequest(world_name) => {
 				let world_name = util::sanitize::sanitize_alphanumeric_dash(world_name);
-				let world = worlds.get_world_mut(world_name.as_str(), &tile_registry)?;
+				if world_name.len() == 0 {
+					send_message!(server, client_id.0, DefaultChannel::ReliableOrdered, protocol::ServerResponse::EnterWorldDeny(protocol::WorldDenyReason::InvalidWorldName));
+					return Ok(())
+				}
+				
+				let world = worlds.get_or_gen_world_mut(world_name.as_str(), &*raw_tile_ids)?;
 				
 				let player = players.get(&client_id);
-				if player.is_some() && world.bans().contains_key(&player.unwrap().0.username) {
-					let ban = world.bans().get(&player.unwrap().0.username).unwrap();
-					send_message!(server, client_id, DefaultChannel::ReliableOrdered, protocol::ServerResponse::EnterWorldDeny(protocol::WorldDenyReason::Banned(ban.reason().to_string(), ban.until())));
-					return Ok(())
-				} else if player.is_none() {
+				if player.is_none() {
 					send_message!(server, client_id.0, DefaultChannel::ReliableOrdered, protocol::ServerMessage::Disconnect(protocol::DisconnectReason::PlayerNonexistent));
 					server.disconnect(client_id.0);
+					return Ok(())
+				}
+				
+				// check if this player is banned & kick 'em if they are
+				if world.bans().contains_key(&player.unwrap().0.username) {
+					let ban = world.bans().get(&player.unwrap().0.username).unwrap();
+					send_message!(server, client_id, DefaultChannel::ReliableOrdered, protocol::ServerResponse::EnterWorldDeny(protocol::WorldDenyReason::Banned(ban.reason().to_string(), ban.until())));
 					return Ok(())
 				}
 				
