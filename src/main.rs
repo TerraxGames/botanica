@@ -40,7 +40,7 @@ pub mod save;
 
 pub const NAMESPACE: &'static str = "botanica";
 
-pub const VERSION_STRING: &'static str = "0.1.0-alpha";
+pub const VERSION_STRING: &'static str = "0.1.0-alpha.0";
 
 pub const DEFAULT_LOCALE: &'static str = "en_us";
 
@@ -72,8 +72,9 @@ pub fn is_headless(headless: Headless) -> bool {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, States, Default)]
 pub enum GameState {
+	/// The stage at which the server or client loads assets. This is always the default state (i.e., it happens first).
 	#[default]
-	Loading,
+	LoadingAssets,
 	
 	// Client
 	/// The splash screen displaying "made with Bevy".
@@ -88,6 +89,25 @@ pub enum GameState {
 	// Server
 	ServerLoading,
 	ServerLoaded,
+}
+
+fn default_asset_plugin() -> AssetPlugin {
+	AssetPlugin {
+		asset_folder: "assets".to_string(),
+		watch_for_changes: None,
+	}
+}
+
+struct DefaultPlugins;
+
+impl PluginGroup for DefaultPlugins {
+    fn build(self) -> bevy::app::PluginGroupBuilder {
+        let mut group = bevy::DefaultPlugins.build();
+		group = group
+			.add_after::<AssetPlugin, AssetPlugin>(default_asset_plugin());
+		
+		group
+    }
 }
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Component)]
@@ -115,7 +135,7 @@ pub fn main() {
 	if headless.0 && env == EnvType::Server {
 		app
 			.add_plugins(MinimalPlugins)
-			.add_plugins(AssetPlugin::default());
+			.add_plugins(default_asset_plugin());
 	} else {
 		app
 			.add_plugins(DefaultPlugins)

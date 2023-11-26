@@ -7,6 +7,7 @@ use bevy_egui::egui::style::Margin;
 use renet::{DefaultChannel, RenetClient};
 use renet::transport::NetcodeClientTransport;
 
+use crate::i18n::{CurrentLocale, TranslationServer};
 use crate::{asset, DEFAULT_LOCALE, despawn_with, from_asset_loc, GameState, LocaleAsset, menu, NAMESPACE, Translatable};
 use crate::menu::{BACKGROUND, BUTTON_BOTTOM_PADDING, BUTTON_HEIGHT, BUTTON_SCALE, BUTTON_TEXT_SIZE, BUTTON_WIDTH, NORMAL_BUTTON, TEXT_MARGIN};
 use crate::menu::button::{ButtonColor, ButtonDownImage, ButtonImageBundle, ButtonUpImage, PreviousButtonInteraction, PreviousButtonProperties};
@@ -58,6 +59,8 @@ fn setup(
 	mut commands: Commands,
 	asset_server: Res<AssetServer>,
 	locale_assets: Res<Assets<LocaleAsset>>,
+	current_locale: Res<CurrentLocale>,
+	translation_server: Res<TranslationServer>,
 ) {
 	let monogram = asset_server.get_handle(from_asset_loc(NAMESPACE, "fonts/monogram/monogram-extended.ttf"));
 	let button_up = ButtonUpImage::from(asset_server.get_handle(from_asset_loc(NAMESPACE, "textures/ui/button/button_up.png")));
@@ -105,12 +108,11 @@ fn setup(
 							..default()
 						},
 						text: Text::from_section(
-							Translatable::translate_once(
-								asset::namespaced(NAMESPACE, "ui.world_select.text.world_select").as_str(),
-								DEFAULT_LOCALE,
-								&asset_server,
-								&locale_assets,
-							),
+							translation_server.translate(
+								NAMESPACE,
+								"ui.world_select.text.world_select",
+								&current_locale,
+							).unwrap(),
 							TextStyle {
 								font: monogram.clone_weak(),
 								font_size: 45.0,
@@ -167,12 +169,11 @@ fn setup(
 											..default()
 										},
 										text: Text::from_section(
-											Translatable::translate_once(
-												asset::namespaced(NAMESPACE, "ui.world_select.button.enter").as_str(),
-												DEFAULT_LOCALE,
-												&asset_server,
-												&locale_assets,
-											),
+											translation_server.translate(
+												NAMESPACE,
+												"ui.world_select.button.enter",
+												&current_locale,
+											).unwrap(),
 											TextStyle {
 												font: monogram.clone(),
 												font_size: BUTTON_TEXT_SIZE,
@@ -213,12 +214,11 @@ fn setup(
 											..default()
 										},
 										text: Text::from_section(
-											Translatable::translate_once(
-												asset::namespaced(NAMESPACE, "ui.world_select.button.cancel").as_str(),
-												DEFAULT_LOCALE,
-												&asset_server,
-												&locale_assets,
-											),
+											translation_server.translate(
+												NAMESPACE,
+												"ui.world_select.button.cancel",
+												&current_locale,
+											).unwrap(),
 											TextStyle {
 												font: monogram.clone(),
 												font_size: BUTTON_TEXT_SIZE,
@@ -238,6 +238,8 @@ fn text_box(
 	asset_server: Res<AssetServer>,
 	locale_assets: Res<Assets<LocaleAsset>>,
 	mut world_name: ResMut<WorldSelection>,
+	current_locale: Res<CurrentLocale>,
+	translation_server: Res<TranslationServer>,
 ) {
 	let button_up = ButtonUpImage::from(asset_server.get_handle(from_asset_loc(NAMESPACE, "textures/ui/button/button_up.png")));
 	let button_down = ButtonDownImage::from(asset_server.get_handle(from_asset_loc(NAMESPACE, "textures/ui/button/button_down.png")));
@@ -249,12 +251,13 @@ fn text_box(
 		..default()
 	};
 	
-	egui::Window::new(Translatable::translate_once(
-		asset::namespaced(NAMESPACE, "ui.world_select.window.title.world_name").as_str(),
-		DEFAULT_LOCALE,
-		&asset_server,
-		&locale_assets,
-	)).show(contexts.ctx(), |ui| {
+	egui::Window::new(
+		translation_server.translate(
+			NAMESPACE,
+			"ui.world_select.window.title.world_name",
+			&current_locale,
+		).unwrap()
+	).show(contexts.ctx(), |ui| {
 		ui.text_edit_singleline(&mut world_name.0);
 	});
 }

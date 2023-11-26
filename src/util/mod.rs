@@ -104,6 +104,25 @@ macro_rules! nonfatal_error_systems {
 
 pub(crate) use nonfatal_error_systems;
 
+macro_rules! fatal_error_systems {
+    ( $error_msg:expr, $error:ty, $( $system_i:ident ),+ ) => {
+		{
+			use bevy::prelude::In;
+			fn __handle_errors__(In(result): In<Result<(), $error>>) {
+				if let Err(error) = result {
+					panic!("{}: {}", $error_msg, error);
+				}
+			}
+			
+			($(
+				$system_i.pipe(__handle_errors__),
+			)+)
+		}
+	};
+}
+
+pub(crate) use fatal_error_systems;
+
 macro_rules! struct_enforce {
     ($param:expr, $($ty:path),+) => {
 		{

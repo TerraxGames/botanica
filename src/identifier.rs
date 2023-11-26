@@ -2,7 +2,7 @@ use std::fmt::{Debug, Display, Formatter};
 
 use serde::{Deserialize, de::Visitor};
 
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct Identifier {
 	namespace: String,
 	id: String,

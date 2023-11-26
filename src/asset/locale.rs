@@ -8,13 +8,21 @@ use serde::Deserialize;
 #[derive(Debug, Clone, Deserialize, TypeUuid, TypePath)]
 #[uuid = "57ed7713-25b9-4f84-a961-238acca10d96"]
 pub struct LocaleAsset {
-	locale: HashMap<String, String>,
-	locale_string: String,
+	translations: HashMap<String, String>,
+	locale: String,
 }
 
 impl LocaleAsset {
-	pub fn translate(self, key: &str) -> String {
-		self.locale.get(key).expect(format!("failed to find translation for {} in locale {}", key, self.locale_string).as_str()).clone() // todo: turn into Result
+	pub fn translate(&self, key: &str) -> Option<String> {
+		Some(self.translations.get(key)?.clone())
+	}
+	
+	pub fn translations(&self) -> &HashMap<String, String> {
+		&self.translations
+	}
+	
+	pub fn locale(&self) -> &str {
+		&self.locale
 	}
 }
 
@@ -26,8 +34,8 @@ impl AssetLoader for LocaleAssetLoader {
 		Box::pin(async move {
 			let locale = ron::de::from_bytes::<HashMap<String, String>>(bytes)?;
 			load_context.set_default_asset(LoadedAsset::new(LocaleAsset {
-				locale,
-				locale_string: load_context.path().to_str().unwrap().to_string(),
+				translations: locale,
+				locale: load_context.path().to_str().unwrap().to_string(),
 			}));
 			Ok(())
 		})

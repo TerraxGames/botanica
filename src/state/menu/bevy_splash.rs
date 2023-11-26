@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+use crate::i18n::{TranslationServer, CurrentLocale};
 use crate::{asset, DEFAULT_LOCALE, despawn_with, from_asset_loc, GameState, LocaleAsset, NAMESPACE, Translatable};
 use crate::state::menu::{BACKGROUND, TEXT_MARGIN};
 
@@ -35,7 +36,9 @@ struct BevySplashTimer(pub Timer);
 fn setup(
 	mut commands: Commands,
 	asset_server: Res<AssetServer>,
-	locale_assets: Res<Assets<LocaleAsset>>
+	locale_assets: Res<Assets<LocaleAsset>>,
+	current_locale: Res<CurrentLocale>,
+	translation_server: Res<TranslationServer>,
 ) {
 	let monogram = asset_server.get_handle(from_asset_loc(NAMESPACE, "fonts/monogram/monogram-extended.ttf"));
 	let bevy_logo = asset_server.get_handle(from_asset_loc(NAMESPACE, "textures/ui/branding/bevy_logo.png"));
@@ -82,12 +85,11 @@ fn setup(
 							..default()
 						},
 						text: Text::from_section(
-							Translatable::translate_once(
-								asset::namespaced(NAMESPACE, "ui.bevy_splash.text.made_with").as_str(),
-								DEFAULT_LOCALE,
-								&asset_server,
-								&locale_assets,
-							),
+							translation_server.translate(
+								NAMESPACE,
+								"ui.bevy_splash.text.made_with",
+								&current_locale,
+							).unwrap(),
 							TextStyle {
 								font: monogram,
 								font_size: 45.0,

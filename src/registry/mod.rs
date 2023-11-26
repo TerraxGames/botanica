@@ -15,8 +15,6 @@ pub struct Registry<T>
 	handles: HashMap<Identifier, Handle<T>>,
 }
 
-const X: &'static str = "a";
-
 impl<T> Registry<T>
 	where T: TypeUuid + TypePath + AssetDynamic + Asset {
 	pub fn new() -> Self {

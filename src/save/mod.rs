@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use bevy::utils::default;
 
-use crate::{save::format::WorldSave, tile::WorldTile, TilePos, raw_id::{RawIds, tile::RawTileIds}};
+use crate::{save::format::WorldSave, tile::WorldTile, TilePos, raw_id::tile::RawTileIds};
 
 use self::error::SaveError;
 

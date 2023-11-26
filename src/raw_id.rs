@@ -8,7 +8,7 @@ use crate::identifier::Identifier;
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Component)]
 pub struct RawId(pub u32);
 
-#[derive(Debug, TypeUuid, TypePath)]
+#[derive(Debug, Default, Clone, TypeUuid, TypePath)]
 #[uuid = "7e34fcef-ef6e-442b-8ec2-576fc73620bf"]
 pub struct RawIds(HashMap<Identifier, RawId>);
 
@@ -21,6 +21,18 @@ impl RawIds {
 	pub fn get_raw_id(&self, id: &Identifier) -> Option<RawId> {
 		Some(*self.0.get(id)?)
 	}
+	
+	pub fn get_ids(&self) -> std::collections::hash_map::Keys<Identifier, RawId> {
+		self.0.keys()
+	}
+	
+	pub fn get_raw_ids(&self) -> std::collections::hash_map::Values<Identifier, RawId> {
+		self.0.values()
+	}
+	
+	pub fn register(&mut self, id: Identifier, raw_id: RawId) {
+		self.0.insert(id, raw_id);
+	}
 }
 
 pub mod tile {
@@ -28,8 +40,8 @@ pub mod tile {
 
     use super::RawIds;
 
-	#[derive(Deref, DerefMut, Resource)]
-	pub struct RawTileIds(RawIds);
+	#[derive(Debug, Default, Clone, Deref, DerefMut, Resource)]
+	pub struct RawTileIds(pub RawIds);
 }
 
 #[derive(Default)]
@@ -53,7 +65,7 @@ impl AssetLoader for RawIdsLoader {
 				ids.insert(id, RawId(i as u32));
 			}
 			
-			load_context.set_labeled_asset(&default_namespace, LoadedAsset::new(RawIds(ids)));
+			load_context.set_default_asset(LoadedAsset::new(RawIds(ids)));
 			
 			Ok(())
 		})
