@@ -110,7 +110,7 @@ impl PluginGroup for DefaultPlugins {
     }
 }
 
-#[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Component)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct TilePos(pub i32, pub i32);
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Component)]

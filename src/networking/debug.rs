@@ -33,7 +33,7 @@ impl Plugin for NetworkingDebugPlugin {
 fn debug_server(
 	mut server: ResMut<RenetServer>,
 	mut visualizer: ResMut<RenetServerVisualizer<VISUALIZER_UPDATE>>,
-	mut contexts: EguiContexts,
+	contexts: EguiContexts,
 ) {
 	while let Some(event) = server.get_event() {
 		match event {
@@ -54,7 +54,7 @@ fn debug_server(
 fn debug_client(
 	client: Res<RenetClient>,
 	mut visualizer: ResMut<RenetClientVisualizer<VISUALIZER_UPDATE>>,
-	mut contexts: EguiContexts,
+	contexts: EguiContexts,
 ) {
 	visualizer.add_network_info(client.network_info());
 	

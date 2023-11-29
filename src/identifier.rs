@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Display, Formatter};
 
-use serde::{Deserialize, de::Visitor};
+use serde::{Serialize, Deserialize, de::Visitor};
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct Identifier {
@@ -30,6 +30,14 @@ impl Identifier {
 	pub fn id(&self) -> &str {
 		self.id.as_str()
 	}
+}
+
+impl Serialize for Identifier {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer {
+        serializer.serialize_str(format!("{}:{}", self.namespace, self.id).as_str())
+    }
 }
 
 impl<'de> Deserialize<'de> for Identifier {

@@ -1,16 +1,15 @@
 use bevy::prelude::*;
 
 use crate::creature::Creature;
-use crate::networking::protocol::ClientId;
-use crate::Position;
+use crate::networking::protocol::{ClientId, PlayerData};
 
 #[derive(Debug, Default, Clone, Component)]
 pub struct Player;
 
 #[derive(Clone, Bundle)]
 pub struct PlayerBundle {
-	creature: Creature,
-	player: Player,
-	id: ClientId,
-	pos: Position,
+	pub creature: Creature,
+	pub player: Player,
+	pub id: ClientId,
+	pub data: PlayerData,
 }

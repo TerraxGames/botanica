@@ -13,7 +13,7 @@ pub const SAVE_DIR: &'static str = "/saves/worlds";
 
 /// ## Warning
 /// You **must** ensure that the name is sanitized!
-pub fn open_world(name: &str) -> Result<WorldSave, SaveError> {
+pub fn open_world(name: &str, raw_tile_ids: &RawTileIds) -> Result<WorldSave, SaveError> {
 	let mut path = std::env::current_dir().unwrap();
 	path.push(format!("{}/{}.dat", SAVE_DIR, name));
 	
@@ -21,13 +21,13 @@ pub fn open_world(name: &str) -> Result<WorldSave, SaveError> {
 		return Err(SaveError::WorldNonexistent)
 	}
 	
-	WorldSave::deserialize(std::fs::read(path)?)
+	WorldSave::deserialize(std::fs::read(path)?, raw_tile_ids)
 }
 
 /// ## Warning
 /// You **must** ensure that the name is sanitized!
 pub fn open_or_gen_world(name: &str, raw_tile_ids: &RawTileIds) -> Result<WorldSave, SaveError> {
-	let world = open_world(name);
+	let world = open_world(name, raw_tile_ids);
 	if let Err(err) = world {
 		match err {
 			SaveError::WorldNonexistent => {
@@ -49,7 +49,7 @@ pub fn open_or_gen_world(name: &str, raw_tile_ids: &RawTileIds) -> Result<WorldS
 
 /// ## Warning
 /// You **must** ensure that the name is sanitized!
-pub fn save_world(name: &str, save: &WorldSave) -> Result<(), SaveError> {
+pub fn save_world(name: &str, save: &WorldSave, raw_tile_ids: &RawTileIds) -> Result<(), SaveError> {
 	let mut path = std::env::current_dir().unwrap();
 	path.push(format!("{}/{}.dat", SAVE_DIR, name));
 	
@@ -57,6 +57,6 @@ pub fn save_world(name: &str, save: &WorldSave) -> Result<(), SaveError> {
 		return Err(std::io::Error::new(std::io::ErrorKind::NotFound, format!("save not found at {}", path.as_os_str().to_string_lossy().to_string())).into())
 	}
 	
-	std::fs::write(path, save.serialize()?)?;
+	std::fs::write(path, save.serialize(raw_tile_ids)?)?;
 	Ok(())
 } 

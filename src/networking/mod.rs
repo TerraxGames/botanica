@@ -1,5 +1,5 @@
 use std::fmt;
-use std::fmt::{Debug, Formatter, Write};
+use std::fmt::Formatter;
 use std::net::AddrParseError;
 use std::time::{Duration, SystemTime};
 
@@ -74,9 +74,10 @@ pub fn time_since_epoch() -> Duration {
 pub(crate) mod stats {
 	use std::collections::HashMap;
 	
-	use bevy::prelude::Resource;
 	
-	use crate::networking::protocol::ClientId;
+	use bevy::ecs::system::Resource;
+
+use crate::networking::protocol::ClientId;
 	
 	/// A player's network statistics
 	#[derive(Debug, Default, Clone)]

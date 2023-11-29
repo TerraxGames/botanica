@@ -1,15 +1,12 @@
 use std::collections::HashMap;
 use std::hash::{BuildHasher, Hasher};
-use std::time::{Duration, SystemTime};
+use std::time::SystemTime;
 
 use bevy::prelude::*;
-use bevy::utils::label::DynHash;
 use serde::{Serialize, Deserialize};
 
 use crate::TilePos;
 use crate::networking::Username;
-use crate::networking::protocol::ClientId;
-use crate::raw_id::RawIds;
 use crate::raw_id::tile::RawTileIds;
 use crate::save::error::SaveError;
 use crate::save::format::WorldSave;
@@ -17,34 +14,43 @@ use crate::save::open_or_gen_world;
 use crate::tile::WorldTile;
 
 #[derive(Resource, Default)]
-pub struct GameWorlds(HashMap<String, GameWorld>);
+pub struct ServerGameWorlds(HashMap<String, ServerGameWorld>);
 
-impl GameWorlds {
-	pub fn get_world(&self, world_name: &str) -> Option<&GameWorld> {
+impl ServerGameWorlds {
+	/// Returns [Some]\(&[GameWorld]) if the world has been loaded. Returns [None] if the world is unloaded.
+	pub fn get_world(&self, world_name: &str) -> Option<&ServerGameWorld> {
 		self.0.get(world_name)
 	}
 	
-	pub fn get_world_mut(&mut self, world_name: &str) -> Option<&mut GameWorld> {
+	/// Returns [Some]\(&mut [GameWorld]) if the world has been loaded. Returns [None] if the world is unloaded.
+	pub fn get_world_mut(&mut self, world_name: &str) -> Option<&mut ServerGameWorld> {
 		self.0.get_mut(world_name)
 	}
 	
-	pub fn get_or_gen_world_mut(&mut self, world_name: &str, raw_tile_ids: &RawTileIds) -> Result<&mut GameWorld, SaveError> {
+	/// Gets, loads, or generates the specified [GameWorld].
+	pub fn get_or_gen_world_mut(&mut self, world_name: &str, raw_tile_ids: &RawTileIds) -> Result<&mut ServerGameWorld, SaveError> {
 		if self.0.contains_key(world_name) {
 			Ok(self.0.get_mut(world_name).unwrap())
 		} else {
 			let save = open_or_gen_world(world_name, raw_tile_ids)?;
-			let world = GameWorld::new(world_name.to_string(), save);
+			let world = ServerGameWorld::new(world_name.to_string(), save, self.get_world_id(world_name));
 			self.add_world(world_name.to_string(), world);
 			Ok(self.0.get_mut(world_name).unwrap())
 		}
 	}
 	
-	pub fn add_world(&mut self, world_name: String, world: GameWorld) {
+	pub fn add_world(&mut self, world_name: String, world: ServerGameWorld) {
 		self.0.insert(world_name, world);
 	}
 	
 	pub fn remove_world(&mut self, world_name: &str) {
 		self.0.remove(world_name);
+	}
+	
+	pub fn get_world_id(&self, world_name: &str) -> WorldId {
+		let mut hasher = self.0.hasher().build_hasher();
+		hasher.write(world_name.as_bytes());
+		WorldId(hasher.finish())
 	}
 }
 
@@ -74,21 +80,23 @@ impl WorldBan {
 	}
 }
 
-#[derive(Debug, Default, Clone, Serialize, Deserialize, Component)]
-pub struct GameWorld {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServerGameWorld {
 	name: String,
 	tiles: HashMap<TilePos, WorldTile>,
-	players: Vec<ClientId>,
+	players: Vec<Entity>,
 	bans: HashMap<Username, WorldBan>,
+	id: WorldId,
 }
 
-impl GameWorld {
-	pub fn new(name: String, save: WorldSave) -> Self {
+impl ServerGameWorld {
+	pub fn new(name: String, save: WorldSave, id: WorldId) -> Self {
 		Self {
 			name,
 			tiles: save.tiles,
 			bans: save.bans,
-			..default()
+			players: default(),
+			id,
 		}
 	}
 	
@@ -96,14 +104,43 @@ impl GameWorld {
 		self.name.as_str()
 	}
 	
+	pub fn tiles(&self) -> &HashMap<TilePos, WorldTile> {
+		&self.tiles
+	}
+	
+	pub fn players(&self) -> &Vec<Entity> {
+		&self.players
+	}
+	
+	pub fn players_mut(&mut self) -> &mut Vec<Entity> {
+		&mut self.players
+	}
+	
 	pub fn bans(&self) -> &HashMap<Username, WorldBan> {
 		&self.bans
 	}
 	
-	pub fn tiles(&self) -> &HashMap<TilePos, WorldTile> {
-		&self.tiles
+	pub fn id(&self) -> WorldId {
+		self.id
 	}
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Resource)]
+pub struct ClientGameWorld {
+	pub name: String,
+	pub id: WorldId,
+	pub tiles: HashMap<TilePos, WorldTile>,
+}
+
+impl ClientGameWorld {
+	pub fn set_tile(&mut self, pos: TilePos, tile: WorldTile) {
+		self.tiles.insert(pos, tile);
+	}
+	
+	pub fn get_tile(&self, pos: &TilePos) -> Option<&WorldTile> {
+		self.tiles.get(pos)
+	}
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Component)]
 pub struct WorldId(pub u64);

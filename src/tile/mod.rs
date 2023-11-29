@@ -1,4 +1,3 @@
-use bevy::prelude::*;
 use serde::{Serialize, Deserialize};
 
 use crate::{raw_id::{RawId, tile::RawTileIds}, identifier::Identifier};
@@ -14,7 +13,11 @@ impl WorldTile {
 	pub fn new(id: &Identifier, raw_tile_ids: &RawTileIds) -> Option<Self> {
 		WorldTile::new_data(id, raw_tile_ids, TileData(0))
 	}
+	
+	pub fn air() -> Self {
+		Self(RawId(-1), TileData(0))
+	}
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Component)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TileData(pub u8); // todo: advanced tile data

@@ -1,14 +1,15 @@
 use std::net::SocketAddr;
 use std::net::UdpSocket;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use bevy::prelude::*;
-use bevy::utils::Instant;
 use bevy_renet::RenetClientPlugin;
 use bevy_renet::transport::NetcodeClientPlugin;
 use renet::{ConnectionConfig, DefaultChannel, RenetClient};
 use renet::transport::{ClientAuthentication, NetcodeClientTransport};
 
+use crate::networking;
+use crate::world::ClientGameWorld;
 use crate::{env, GameState, ServerConnectAddress, util};
 use crate::networking::{DisconnectReason, Ping, protocol, time_since_epoch, Username};
 use crate::networking::error::{NETWORK_ERROR_MESSAGE, NetworkError};
@@ -32,7 +33,7 @@ impl Plugin for NetworkingPlugin {
 			.add_systems(
 				Update,
 				(
-						nonfatal_error_systems!(NETWORK_ERROR_MESSAGE, NetworkError, connecting)
+						nonfatal_error_systems!(NETWORK_ERROR_MESSAGE, NetworkError, connecting),
 				)
 					.run_if(in_state(GameState::ClientConnecting))
 					.run_if(env::is_client)
@@ -64,8 +65,16 @@ macro_rules! send_message {
 
 pub(crate) use send_message;
 
+use super::protocol::ClientId;
+
 #[derive(Debug, Resource)]
-pub struct LocalPlayer(pub PlayerData, pub u64);
+pub struct LocalPlayer(pub Entity);
+
+#[derive(Debug, Bundle)]
+struct LocalPlayerBundle {
+	data: PlayerData,
+	client_id: ClientId,
+}
 
 #[derive(Debug, Resource)]
 struct ConnectedTime(Instant);
@@ -87,19 +96,21 @@ fn setup(
 	
 	let client_id = time_since_epoch().as_millis() as u64;
 	
-	commands.insert_resource(
-		LocalPlayer(
-			PlayerData {
+	let local_player_entity = commands.spawn(
+		LocalPlayerBundle {
+			data: PlayerData {
 				username: username.clone(),
 			},
-			client_id,
-		)
-	);
+			client_id: ClientId(client_id),
+		}
+	).id();
+	commands.insert_resource(LocalPlayer(local_player_entity));
 	
 	let client_addr = "0.0.0.0:0"; // request dynamic port
-	let socket = UdpSocket::bind(&client_addr).expect(&format!("Failed to bind to address \"{}\"", client_addr));
+	let socket = UdpSocket::bind(&client_addr).expect(&format!("Failed to bind to address \"{}\"", client_addr)); // fixme: kick to disconnect screen
 	let current_time = time_since_epoch();
 	let server_addr: Option<SocketAddr> = { // weird hack
+		// basically what this does is it goes to the disconnect screen if there's an error parsing the address
 		let server_address = server_address.into_inner();
 		let res = server_address.try_into();
 		match res {
@@ -131,8 +142,8 @@ fn setup(
 }
 
 fn connecting(
-	mut client: Option<ResMut<RenetClient>>,
-	mut transport: Option<ResMut<NetcodeClientTransport>>,
+	client: Option<ResMut<RenetClient>>,
+	transport: Option<ResMut<NetcodeClientTransport>>,
 	mut commands: Commands,
 	mut next_state: ResMut<NextState<GameState>>,
 	connected_time: Option<Res<ConnectedTime>>,
@@ -151,7 +162,7 @@ fn connecting(
 	}
 	
 	let mut client = client.unwrap();
-	let mut transport = transport.unwrap();
+	let transport = transport.unwrap();
 	let connected_time = connected_time.unwrap();
 	let connecting_timeout = connecting_timeout.unwrap();
 	
@@ -182,17 +193,18 @@ fn connecting(
 					protocol::Message::ServerMessage(message) => {
 						match message {
 							ServerMessage::Disconnect(reason) => on_disconnect(DisconnectReason::Disconnected(reason), next_state.into_inner(), transport.into_inner(), client.into_inner()),
-							_ => warn!("Unexpected message from server: {:?}", message)
+							ServerMessage::RawTileIds(raw_tile_ids) => commands.insert_resource(raw_tile_ids),
+							_ => warn!("Unexpected message from server: {:?}", message),
 						}
-					}
+					},
 					protocol::Message::ServerResponse(response) => {
 						match response {
 							ServerResponse::JoinAccept => next_state.set(GameState::WorldSelect),
 							ServerResponse::JoinDeny(reason) => on_disconnect(DisconnectReason::Disconnected(reason), next_state.into_inner(), transport.into_inner(), client.into_inner()),
-							_ => warn!("Unexpected message from server: {:?}", response)
+							_ => warn!("Unexpected message from server: {:?}", response),
 						}
-					}
-					_ => warn!("Received incorrect/client message from server: {:?}", message)
+					},
+					_ => warn!("Received incorrect/client message from server: {:?}", message),
 				}
 			}
 		}
@@ -203,7 +215,7 @@ fn connecting(
 
 fn client(
 	mut client: ResMut<RenetClient>,
-	mut transport: ResMut<NetcodeClientTransport>,
+	transport: ResMut<NetcodeClientTransport>,
 	mut commands: Commands,
 	next_state: ResMut<NextState<GameState>>,
 ) -> Result<(), NetworkError> {
@@ -223,10 +235,10 @@ fn client(
 			match message {
 				protocol::Message::ServerMessage(message) => {
 					commands.spawn(message);
-				}
+				},
 				protocol::Message::ServerResponse(response) => {
 					commands.spawn(response);
-				}
+				},
 				_ => warn!("Received incorrect/client message from server: {:?}", message),
 			}
 		}
@@ -239,22 +251,27 @@ fn server_message(
 	message_query: Query<(Entity, &ServerMessage)>,
 	mut client: ResMut<RenetClient>,
 	mut commands: Commands,
+	mut client_world: ResMut<ClientGameWorld>,
+	mut next_state: ResMut<NextState<GameState>>,
+	mut transport: ResMut<NetcodeClientTransport>,
 ) -> Result<(), NetworkError> {
 	for (entity, message) in message_query.iter() {
 		commands.entity(entity).despawn();
 		println!("{:?}", message);
 		match message {
 			ServerMessage::Ping { timestamp } => {
-				send_message!(client, 0, protocol::ClientResponse::PingAck { timestamp: *timestamp });
-			}
+				send_message!(client, DefaultChannel::ReliableOrdered, protocol::ClientResponse::PingAck { timestamp: *timestamp });
+			},
 			ServerMessage::ChatMessage(chat_message) => {
 				commands.spawn(chat_message.clone());
-			}
+			},
 			ServerMessage::Disconnect(reason) => {
-				println!("Disconnected.\nReason: {:?}", reason);
-				client.disconnect();
-			}
-			_ => {}
+				on_disconnect(networking::DisconnectReason::Disconnected(reason.clone()), &mut next_state, &mut transport, &mut client);
+			},
+			ServerMessage::WorldTiles(tiles) => {
+				client_world.tiles = tiles.clone();
+			},
+			_ => {},
 		}
 	}
 	
@@ -265,6 +282,7 @@ fn server_response(
 	response_query: Query<(Entity, &ServerResponse)>,
 	mut next_state: ResMut<NextState<GameState>>,
 	mut commands: Commands,
+	mut client_world: ResMut<ClientGameWorld>,
 ) -> Result<(), NetworkError> {
 	for (entity, response) in response_query.iter() {
 		commands.entity(entity).despawn();
@@ -273,10 +291,16 @@ fn server_response(
 			ServerResponse::PingAck { timestamp } => {
 				let ping = time_since_epoch().as_millis() - timestamp;
 				commands.insert_resource(Ping(ping));
-			}
-			ServerResponse::EnterWorldAccept => next_state.set(GameState::LoadingWorld),
-			ServerResponse::EnterWorldDeny(reason) => println!("Failed to enter world.\nReason: {:?}", reason),
-			_ => {}
+			},
+			ServerResponse::EnterWorldAccept(world_id) => {
+				client_world.id = *world_id;
+				next_state.set(GameState::LoadingWorld);
+			},
+			ServerResponse::EnterWorldDeny(reason) => {
+				commands.remove_resource::<ClientGameWorld>();
+				println!("Failed to enter world. Reason: {reason:?}");
+			},
+			_ => {},
 		}
 	}
 	

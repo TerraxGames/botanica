@@ -1,5 +1,7 @@
 use thiserror::Error;
 
+use crate::{raw_id::RawId, identifier::Identifier};
+
 #[derive(Debug, Error)]
 pub enum SaveError {
     #[error("I/O error: {0}")]
@@ -12,4 +14,8 @@ pub enum SaveError {
 	InvalidVersion(u32, u32),
 	#[error("world does not exist")]
 	WorldNonexistent,
+	#[error("the raw {0} ID {1} was not found in the save")]
+	RawIdNotFoundInSave(String, RawId),
+	#[error("the {0} ID {1} does not exist")]
+	IdNonexistent(String, Identifier),
 }

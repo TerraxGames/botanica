@@ -1,9 +1,7 @@
-use std::collections::HashMap;
-
 use bevy::{asset::{AssetLoader, LoadedAsset}, reflect::{TypeUuid, TypePath}};
-use serde::{Deserialize, de::Visitor};
+use serde::Deserialize;
 
-use crate::{registry::{def::Definition, tile::settings::TileSettings}, identifier::Identifier, i18n::Translatable, raw_id::RawId};
+use crate::{registry::tile::settings::TileSettings, identifier::Identifier, i18n::Translatable};
 
 fn id_default() -> Identifier {
 	Identifier::from_str("null", "null")

@@ -8,18 +8,16 @@ use renet::{Bytes, ConnectionConfig, DefaultChannel, RenetServer, ServerEvent};
 use renet::transport::{NetcodeServerTransport, ServerAuthentication};
 use serde::{Deserialize, Serialize};
 
-use crate::raw_id::RawIds;
+use crate::creature::player::{Player, PlayerBundle};
 use crate::raw_id::tile::RawTileIds;
-use crate::registry::tile::TileRegistry;
-use crate::save::open_world;
-use crate::{env, GameState, Username, util, VERSION_STRING};
+use crate::{env, GameState, Username, util, VERSION_STRING, Position};
 use crate::networking::{protocol, time_since_epoch};
 use crate::networking::error::{NETWORK_ERROR_MESSAGE, NetworkError};
 use crate::networking::protocol::{ChatMessageBundle, ChatMessageContent, ClientId, ClientMessage, ClientMessageBundle, ClientResponse, ClientResponseBundle, PlayerData, PROTOCOL_VER};
 use crate::networking::stats::PlayerNetStats;
 use crate::player::{Source, Target};
 use crate::util::{nonfatal_error_systems, strip_formatting, struct_enforce, trait_enforce};
-use crate::world::{GameWorlds, WorldId, GameWorld};
+use crate::world::{ServerGameWorlds, WorldId};
 
 pub struct NetworkingPlugin;
 
@@ -29,7 +27,7 @@ impl Plugin for NetworkingPlugin {
 			.add_plugins(RenetServerPlugin)
 			.add_plugins(NetcodeServerPlugin)
 			.init_resource::<Players>()
-			.init_resource::<GameWorlds>()
+			.init_resource::<ServerGameWorlds>()
 			.init_resource::<ServerConfig>()
 			.add_systems(
 				OnEnter(GameState::ServerLoading),
@@ -105,7 +103,7 @@ impl Default for ServerConfig {
 }
 
 #[derive(Debug, Deref, Default, Clone, Resource)]
-pub struct Players(pub HashMap<ClientId, (PlayerData, Option<WorldId>, Option<Entity>)>);
+pub struct Players(pub HashMap<ClientId, Entity>);
 
 fn setup(
 	server_config: Res<ServerConfig>,
@@ -139,28 +137,38 @@ fn setup(
 
 fn server(
 	mut server: ResMut<RenetServer>,
-	mut transport: ResMut<NetcodeServerTransport>,
+	transport: Res<NetcodeServerTransport>,
 	mut commands: Commands,
 	mut players: ResMut<Players>,
+	player_query: Query<&PlayerData, With<Player>>,
 	mut ev_server: EventReader<ServerEvent>,
+	raw_tile_ids: Res<RawTileIds>,
 ) -> Result<(), NetworkError> {
 	for event in ev_server.iter() {
 		match event {
 			ServerEvent::ClientConnected { client_id: id } => {
 				if let Some(user_data) = transport.user_data(*id) {
 					let username = Username::from_user_data(&user_data);
-					players.0.insert(ClientId(*id), (PlayerData { username: username.clone() }, None, None));
-					println!("Player {} (ID {:x}) connected", username, id);
+					let player_bundle = PlayerBundle {
+						creature: default(),
+						player: default(),
+						id: ClientId(*id),
+						data: PlayerData { username: username.clone() },
+					};
+					players.0.insert(ClientId(*id), commands.spawn(player_bundle).id());
+					println!("Player {} (ID {:X}) connected", username, id);
+					send_message!(server, *id, DefaultChannel::ReliableOrdered, protocol::ServerMessage::RawTileIds(raw_tile_ids.clone()));
 				} else {
-					println!("Player (ID {:x}) attempted to join, but no user data was sent!", id);
+					println!("Player (ID {:X}) attempted to join, but no user data was sent!", id);
 					send_message!(server, *id, DefaultChannel::ReliableOrdered, protocol::ServerMessage::Disconnect(protocol::DisconnectReason::EmptyUserdata));
 					server.disconnect(*id);
 				}
 			}
 			ServerEvent::ClientDisconnected { client_id: id, reason } => {
 				let player = players.0.remove(&ClientId(*id));
-				if let Some((player, _, _)) = player {
-					println!("Player {} (ID {:x}) disconnected: {}", player.username, id, reason);
+				if let Some(player_entity) = player {
+					let player_data = player_query.get(player_entity)?;
+					println!("Player {} (ID {:X}) disconnected: {}", player_data.username, id, reason);
 				}
 			}
 		}
@@ -191,16 +199,19 @@ fn server(
 fn client_message(
 	message_query: Query<(Entity, &ClientId, &ClientMessage)>,
 	mut server: ResMut<RenetServer>,
-	mut worlds: ResMut<GameWorlds>,
-	mut players: ResMut<Players>,
+	mut worlds: ResMut<ServerGameWorlds>,
+	players: Res<Players>,
+	player_query: Query<(&PlayerData, Option<&WorldId>, Option<&Position>), With<Player>>,
 	raw_tile_ids: Res<RawTileIds>,
 	mut player_stats: ResMut<PlayerNetStats>,
 	mut commands: Commands,
 ) -> Result<(), NetworkError> {
 	for (entity, client_id, message) in message_query.iter() {
 		commands.entity(entity).despawn();
-		if let Some(player) = players.0.get(&client_id) {
-			println!("({}:{:x}): {:?}", player.0.username, client_id.0, message);
+		if let Some(player_entity) = players.0.get(&client_id) {
+			let player = player_query.get(*player_entity)?;
+			let player_data = player.0;
+			println!("({}:{:X}): {:?}", player_data.username, client_id.0, message);
 		} else {
 			continue
 		}
@@ -214,48 +225,51 @@ fn client_message(
 			}
 			ClientMessage::JoinRequest { protocol_ver } => {
 				if *protocol_ver != PROTOCOL_VER {
-					send_message!(server, client_id.0, DefaultChannel::ReliableOrdered, protocol::ServerResponse::JoinDeny(protocol::DisconnectReason::ProtocolReject { required_protocol_ver: PROTOCOL_VER, required_version_string: VERSION_STRING.to_string() }));
+					send_message!(server, client_id, DefaultChannel::ReliableOrdered, protocol::ServerResponse::JoinDeny(protocol::DisconnectReason::ProtocolReject { required_protocol_ver: PROTOCOL_VER, required_version_string: VERSION_STRING.to_string() }));
 					server.disconnect(client_id.0);
 				} else {
-					send_message!(server, client_id.0, DefaultChannel::ReliableOrdered, protocol::ServerResponse::JoinAccept);
+					send_message!(server, client_id, DefaultChannel::ReliableOrdered, protocol::ServerResponse::JoinAccept);
 				}
 			}
 			ClientMessage::PlayerPosition(position) => {
-				send_message!(server, client_id.0, DefaultChannel::Unreliable, protocol::ServerMessage::PlayerPosition(*client_id, *position)); // todo: send position to players in world
+				send_message!(server, client_id, DefaultChannel::Unreliable, protocol::ServerMessage::PlayerPosition(*client_id, *position)); // todo: send position to players in world
 			}
 			ClientMessage::EnterWorldRequest(world_name) => {
 				let world_name = util::sanitize::sanitize_alphanumeric_dash(world_name);
 				if world_name.len() == 0 {
-					send_message!(server, client_id.0, DefaultChannel::ReliableOrdered, protocol::ServerResponse::EnterWorldDeny(protocol::WorldDenyReason::InvalidWorldName));
+					send_message!(server, client_id, DefaultChannel::ReliableOrdered, protocol::ServerResponse::EnterWorldDeny(protocol::WorldDenyReason::InvalidWorldName));
 					return Ok(())
 				}
 				
 				let world = worlds.get_or_gen_world_mut(world_name.as_str(), &*raw_tile_ids)?;
 				
-				let player = players.get(&client_id);
-				if player.is_none() {
-					send_message!(server, client_id.0, DefaultChannel::ReliableOrdered, protocol::ServerMessage::Disconnect(protocol::DisconnectReason::PlayerNonexistent));
+				let player_entity = players.get(&client_id);
+				if player_entity.is_none() {
+					send_message!(server, client_id, DefaultChannel::ReliableOrdered, protocol::ServerMessage::Disconnect(protocol::DisconnectReason::PlayerNonexistent));
 					server.disconnect(client_id.0);
 					return Ok(())
 				}
+				let player = player_query.get(*player_entity.unwrap())?;
 				
 				// check if this player is banned & kick 'em if they are
-				if world.bans().contains_key(&player.unwrap().0.username) {
-					let ban = world.bans().get(&player.unwrap().0.username).unwrap();
+				if world.bans().contains_key(&player.0.username) {
+					let ban = world.bans().get(&player.0.username).unwrap();
 					send_message!(server, client_id, DefaultChannel::ReliableOrdered, protocol::ServerResponse::EnterWorldDeny(protocol::WorldDenyReason::Banned(ban.reason().to_string(), ban.until())));
+					// todo: unload world if no other players are present
 					return Ok(())
 				}
 				
-				send_message!(server, client_id.0, DefaultChannel::ReliableOrdered, protocol::ServerResponse::EnterWorldAccept);
+				send_message!(server, client_id, DefaultChannel::ReliableOrdered, protocol::ServerResponse::EnterWorldAccept(world.id()));
 				send_message!(server, client_id, DefaultChannel::ReliableOrdered, protocol::ServerMessage::WorldTiles(world.tiles().clone()))
 			}
 			ClientMessage::ChatMessage(target, content) => {
+				let player = player_query.get(*players.0.get(&client_id).unwrap())?;
 				let chat_message = ChatMessageBundle {
 					content: ChatMessageContent(content.into()),
-					source: Source::Player(*client_id, players.0.get(&client_id).unwrap().1),
+					source: Source::Player(*client_id, player.1.cloned()),
 					target: target.clone(),
 				};
-				send_message!(server, client_id.0, DefaultChannel::ReliableOrdered, protocol::ServerMessage::ChatMessage(chat_message)); // todo: broadcast chat message to players in target range
+				send_message!(server, client_id, DefaultChannel::ReliableOrdered, protocol::ServerMessage::ChatMessage(chat_message)); // todo: broadcast chat message to players in target range
 			}
 			_ => {}
 		}
@@ -266,16 +280,16 @@ fn client_message(
 
 fn client_response(
 	message_query: Query<(Entity, &ClientId, &ClientResponse)>,
-	mut server: ResMut<RenetServer>,
 	mut commands: Commands,
-	mut worlds: ResMut<GameWorlds>,
-	mut players: ResMut<Players>,
+	players: Res<Players>,
+	player_query: Query<(&PlayerData, Option<&WorldId>), With<Player>>,
 	mut player_stats: ResMut<PlayerNetStats>,
 ) -> Result<(), NetworkError> {
 	for (entity, client_id, response) in message_query.iter() {
 		commands.entity(entity).despawn();
-		if let Some(player) = players.0.get(&client_id) {
-			println!("({}:{:x}): {:?}", player.0.username, client_id.0, response);
+		if let Some(player_entity) = players.0.get(&client_id) {
+			let player = player_query.get(*player_entity)?;
+			println!("({}:{:X}): {:?}", player.0.username, client_id.0, response);
 		} else {
 			continue
 		}

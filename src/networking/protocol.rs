@@ -7,9 +7,10 @@ use renet::Bytes;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::raw_id::tile::RawTileIds;
 use crate::tile::WorldTile;
-use crate::world::WorldBanUntil;
-use crate::{TilePos, Username};
+use crate::world::{WorldBanUntil, WorldId};
+use crate::{TilePos, Username, Position};
 use crate::networking::error::NetworkError;
 use crate::player::{Source, Target};
 
@@ -26,7 +27,7 @@ impl fmt::Display for ProtocolVersion {
 	}
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 /// A type of message.
 pub enum Message {
 	ServerMessage(ServerMessage),
@@ -47,7 +48,7 @@ macro_rules! impl_try_into_bytes {
 	};
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Component)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Component)]
 /// A message that the server sends to a client (or to all/some clients).
 pub enum ServerMessage {
 	Ping {
@@ -61,7 +62,9 @@ pub enum ServerMessage {
 	/// A request from a player to change their display name (nickname).
 	PlayerNick(ClientId, String),
 	ChatMessage(ChatMessageBundle),
-	PlayerPosition(ClientId, TilePos),
+	PlayerPosition(ClientId, Position),
+	/// Syncs the server's [RawTileIds] with the client.
+	RawTileIds(RawTileIds),
 	WorldTiles(HashMap<TilePos, WorldTile>),
 }
 
@@ -85,12 +88,12 @@ pub enum ServerResponse {
 		timestamp: u128,
 	},
 	EnterWorldDeny(WorldDenyReason),
-	EnterWorldAccept,
+	EnterWorldAccept(WorldId),
 }
 
 impl_try_into_bytes!(ServerResponse);
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Component)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Component)]
 /// A message that the client sends to the server.
 pub enum ClientMessage {
 	JoinRequest {
@@ -104,12 +107,12 @@ pub enum ClientMessage {
 	},
 	ChatMessage(Target, String),
 	EnterWorldRequest(String),
-	PlayerPosition(TilePos),
+	PlayerPosition(Position),
 }
 
 impl_try_into_bytes!(ClientMessage);
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Bundle)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Bundle)]
 pub struct ClientMessageBundle {
 	pub id: ClientId,
 	pub message: ClientMessage,
@@ -161,6 +164,7 @@ pub enum DisconnectReason {
 	Other(Option<String>),
 }
 
+/// The reason entry to a world has been denied.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Component)]
 pub enum WorldDenyReason {
 	WorldFull(String),

@@ -10,4 +10,6 @@ pub enum NetworkError {
 	Serialization(#[from] bincode::Error),
 	#[error("save error: {0}")]
 	SaveError(#[from] save::error::SaveError),
+	#[error("error querying entity: {0}")]
+	QueryEntityError(#[from] bevy::ecs::query::QueryEntityError),
 }

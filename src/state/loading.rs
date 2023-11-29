@@ -129,25 +129,27 @@ fn check_assets_ready(
 			
 			loading.finished = true;
 			
-			let mut raw_tile_ids: RawTileIds = default();
-			for asset_path in asset_paths.iter() {
-				let raw_ids_vec: Vec<HandleUntyped> = asset_server.load_folder(from_asset_loc(asset_path, "ids"))?; // todo: don't require that the ids folder be present
-				for handle in raw_ids_vec {
-					let raw_ids_asset = raw_ids_assets.get(&handle.clone().typed::<RawIds>()).unwrap();
-					let file_name = asset_server.get_handle_path(handle).unwrap().path().file_name().unwrap().to_string_lossy().to_string();
-					match file_name.as_str() {
-						"tile.ids.ron" => {
-							for id in raw_ids_asset.get_ids() {
-								let raw_id = raw_ids_asset.get_raw_id(id).unwrap();
-								raw_tile_ids.register(id.clone(), raw_id);
-							}
-						},
-						_ => unimplemented!("unknown Raw ID type: {}", file_name),
+			if *env == EnvType::Server {
+				let mut raw_tile_ids: RawTileIds = default();
+				for asset_path in asset_paths.iter() {
+					let raw_ids_vec: Vec<HandleUntyped> = asset_server.load_folder(from_asset_loc(asset_path, "ids"))?; // todo: don't require that the ids folder be present
+					for handle in raw_ids_vec {
+						let raw_ids_asset = raw_ids_assets.get(&handle.clone().typed::<RawIds>()).unwrap();
+						let file_name = asset_server.get_handle_path(handle).unwrap().path().file_name().unwrap().to_string_lossy().to_string();
+						match file_name.as_str() {
+							"tile.ids.ron" => {
+								for id in raw_ids_asset.get_ids() {
+									let raw_id = raw_ids_asset.get_raw_id(id).unwrap();
+									raw_tile_ids.register(id.clone(), raw_id);
+								}
+							},
+							_ => unimplemented!("unknown Raw ID type: {}", file_name),
+						}
 					}
 				}
+				
+				commands.insert_resource(raw_tile_ids);
 			}
-			
-			commands.insert_resource(raw_tile_ids);
 			
 			let current_locale = CurrentLocale::new(DEFAULT_LOCALE.to_string()); // todo: change locale based on settings
 			

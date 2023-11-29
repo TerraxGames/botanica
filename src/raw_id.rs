@@ -6,9 +6,15 @@ use serde::{Deserialize, Serialize};
 use crate::identifier::Identifier;
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Component)]
-pub struct RawId(pub u32);
+pub struct RawId(pub i32);
 
-#[derive(Debug, Default, Clone, TypeUuid, TypePath)]
+impl std::fmt::Display for RawId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("RawId(0x{:X})", self.0))
+    }
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq, TypeUuid, TypePath)]
 #[uuid = "7e34fcef-ef6e-442b-8ec2-576fc73620bf"]
 pub struct RawIds(HashMap<Identifier, RawId>);
 
@@ -37,10 +43,11 @@ impl RawIds {
 
 pub mod tile {
     use bevy::prelude::*;
+    use serde::{Serialize, Deserialize};
 
     use super::RawIds;
 
-	#[derive(Debug, Default, Clone, Deref, DerefMut, Resource)]
+	#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq, Deref, DerefMut, Resource)]
 	pub struct RawTileIds(pub RawIds);
 }
 
@@ -54,7 +61,7 @@ impl AssetLoader for RawIdsLoader {
 		load_context: &'a mut bevy::asset::LoadContext,
 	) -> bevy::utils::BoxedFuture<'a, anyhow::Result<(), anyhow::Error>> {
 		Box::pin(async move {
-			let default_namespace = load_context.path().ancestors().nth(1).expect("tile id file should be in directory \"<namespace>/tiles\"").to_string_lossy().to_string();
+			let default_namespace = load_context.path().ancestors().nth(2).expect("raw ID file should be in directory \"<namespace>/ids\"").file_name().expect("path should not contain \"..\"").to_string_lossy().to_string();
 			let id_vec: Vec<Identifier> = ron::de::from_bytes(bytes)?;
 			let mut ids = HashMap::new();
 			for (i, mut id) in id_vec.into_iter().enumerate() {
@@ -62,7 +69,7 @@ impl AssetLoader for RawIdsLoader {
 					id = Identifier::new(default_namespace.clone(), id.id().to_string());
 				}
 				
-				ids.insert(id, RawId(i as u32));
+				ids.insert(id, RawId(i as i32));
 			}
 			
 			load_context.set_default_asset(LoadedAsset::new(RawIds(ids)));

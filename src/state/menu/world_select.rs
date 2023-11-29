@@ -8,6 +8,7 @@ use renet::{DefaultChannel, RenetClient};
 use renet::transport::NetcodeClientTransport;
 
 use crate::i18n::{CurrentLocale, TranslationServer};
+use crate::world::{ClientGameWorld, WorldId};
 use crate::{asset, DEFAULT_LOCALE, despawn_with, from_asset_loc, GameState, LocaleAsset, menu, NAMESPACE, Translatable};
 use crate::menu::{BACKGROUND, BUTTON_BOTTOM_PADDING, BUTTON_HEIGHT, BUTTON_SCALE, BUTTON_TEXT_SIZE, BUTTON_WIDTH, NORMAL_BUTTON, TEXT_MARGIN};
 use crate::menu::button::{ButtonColor, ButtonDownImage, ButtonImageBundle, ButtonUpImage, PreviousButtonInteraction, PreviousButtonProperties};
@@ -271,12 +272,20 @@ fn button_action(
 	mut client: ResMut<RenetClient>,
 	mut next_state: ResMut<NextState<GameState>>,
 	world_name: Res<WorldSelection>,
+	mut commands: Commands,
 ) -> Result<(), NetworkError> {
 	for (interaction, previous_interaction, button_action) in interaction_query.iter() {
 		if *interaction == Interaction::Hovered && *previous_interaction == Interaction::Pressed.into() {
 			match button_action {
 				ButtonAction::Enter => {
-					client::send_message!(client, DefaultChannel::ReliableOrdered, protocol::ClientMessage::EnterWorldRequest(world_name.0.clone()))
+					commands.insert_resource(
+						ClientGameWorld {
+							name: world_name.0.clone(),
+							id: WorldId(0),
+							tiles: default(),
+						}
+					);
+					client::send_message!(client, DefaultChannel::ReliableOrdered, protocol::ClientMessage::EnterWorldRequest(world_name.0.clone()));
 				},
 				ButtonAction::Cancel => {
 					disconnect(DisconnectReason::Client(renet::DisconnectReason::DisconnectedByClient), &mut transport, &mut client, true);

@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use bevy::prelude::*;
 use serde::de::Visitor;
@@ -6,7 +6,6 @@ use serde::Deserialize;
 use thiserror::Error;
 
 use crate::asset::locale::LocaleAsset;
-use crate::asset::parse_namespaced;
 
 /// Represents the currently loaded locale.
 #[derive(Debug, Resource)]

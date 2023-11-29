@@ -1,5 +1,5 @@
 use std::fmt;
-use std::fmt::{Formatter, Write};
+use std::fmt::Formatter;
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
