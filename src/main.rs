@@ -98,18 +98,6 @@ fn default_asset_plugin() -> AssetPlugin {
 	}
 }
 
-struct DefaultPlugins;
-
-impl PluginGroup for DefaultPlugins {
-    fn build(self) -> bevy::app::PluginGroupBuilder {
-        let mut group = bevy::DefaultPlugins.build();
-		group = group
-			.add_after::<AssetPlugin, AssetPlugin>(default_asset_plugin());
-		
-		group
-    }
-}
-
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct TilePos(pub i32, pub i32);
 
@@ -138,14 +126,18 @@ pub fn main() {
 			.add_plugins(default_asset_plugin());
 	} else {
 		app
-			.add_plugins(DefaultPlugins)
+			.add_plugins(
+				DefaultPlugins
+					.set(default_asset_plugin())
+					.set(ImagePlugin::default_nearest()) // so our sprites appear crisp and clear
+			)
 			.add_plugins((EguiPlugin, NetworkingDebugPlugin))
 			.add_plugins(
 				(
 					menu::bevy_splash::BevySplashPlugin,
 					menu::title_screen::TitleScreenPlugin,
 					menu::world_select::WorldSelectPlugin,
-					menu::server_select::ServerSelectPlugin
+					menu::server_select::ServerSelectPlugin,
 				)
 			)
 			.add_systems(

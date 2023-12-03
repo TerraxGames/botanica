@@ -4,6 +4,7 @@ use std::convert::Into;
 
 use bevy::asset::{AssetIo, AssetIoError, FileAssetIo};
 use bevy::prelude::*;
+use bevy::render::camera::ScalingMode;
 use bevy_egui::{egui, EguiContext, EguiContexts};
 use futures::executor;
 
@@ -42,7 +43,16 @@ pub fn init_ui(
 	mut contexts: EguiContexts,
 	asset_server: Res<AssetServer>,
 ) {
-	commands.spawn(Camera2dBundle::default());
+	commands.spawn(
+		Camera2dBundle {
+			projection: OrthographicProjection {
+				scale: 8.0,
+				scaling_mode: ScalingMode::WindowSize(1.0),
+				..default()
+			},
+			..default()
+		}
+	);
 	
 	let monogram = executor::block_on(load_asset_bytes(from_asset_loc(NAMESPACE, "fonts/monogram/monogram-extended.ttf"), asset_server.asset_io())).expect("Failed to load monogram font");
 	let mut fonts = egui::FontDefinitions::default();
