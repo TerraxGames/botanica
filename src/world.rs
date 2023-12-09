@@ -33,7 +33,13 @@ impl ServerGameWorlds {
 			Ok(self.0.get_mut(world_name).unwrap())
 		} else {
 			let save = open_or_gen_world(world_name, raw_tile_ids)?;
-			let world = ServerGameWorld::new(world_name.to_string(), save, self.get_world_id(world_name));
+			let world = ServerGameWorld {
+				name: world_name.to_string(),
+				tiles: save.tiles,
+				players: default(),
+				bans: save.bans,
+				id: self.get_world_id(world_name),
+			};
 			self.add_world(world_name.to_string(), world);
 			Ok(self.0.get_mut(world_name).unwrap())
 		}
@@ -80,63 +86,31 @@ impl WorldBan {
 	}
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// An event that sets a tile.
+#[derive(Event)]
+pub struct SetTile {
+	pub pos: TilePos,
+	pub tile: WorldTile,
+}
+
+#[derive(Clone)]
 pub struct ServerGameWorld {
-	name: String,
-	tiles: HashMap<TilePos, WorldTile>,
-	players: Vec<Entity>,
-	bans: HashMap<Username, WorldBan>,
-	id: WorldId,
+	pub name: String,
+	pub tiles: HashMap<TilePos, WorldTile>,
+	pub players: Vec<Entity>,
+	pub bans: HashMap<Username, WorldBan>,
+	pub id: WorldId,
 }
 
-impl ServerGameWorld {
-	pub fn new(name: String, save: WorldSave, id: WorldId) -> Self {
-		Self {
-			name,
-			tiles: save.tiles,
-			bans: save.bans,
-			players: default(),
-			id,
-		}
-	}
-	
-	pub fn name(&self) -> &str {
-		self.name.as_str()
-	}
-	
-	pub fn tiles(&self) -> &HashMap<TilePos, WorldTile> {
-		&self.tiles
-	}
-	
-	pub fn players(&self) -> &Vec<Entity> {
-		&self.players
-	}
-	
-	pub fn players_mut(&mut self) -> &mut Vec<Entity> {
-		&mut self.players
-	}
-	
-	pub fn bans(&self) -> &HashMap<Username, WorldBan> {
-		&self.bans
-	}
-	
-	pub fn id(&self) -> WorldId {
-		self.id
-	}
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Resource)]
+#[derive(Clone, Resource)]
 pub struct ClientGameWorld {
 	pub name: String,
 	pub id: WorldId,
 	pub tiles: HashMap<TilePos, WorldTile>,
+	pub tile_sprites: HashMap<TilePos, Entity>,
 }
 
 impl ClientGameWorld {
-	pub fn set_tile(&mut self, pos: TilePos, tile: WorldTile) {
-		self.tiles.insert(pos, tile);
-	}
-	
 	pub fn get_tile(&self, pos: &TilePos) -> Option<&WorldTile> {
 		self.tiles.get(pos)
 	}

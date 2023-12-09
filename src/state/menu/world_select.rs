@@ -12,8 +12,9 @@ use crate::world::{ClientGameWorld, WorldId};
 use crate::{asset, DEFAULT_LOCALE, despawn_with, from_asset_loc, GameState, LocaleAsset, menu, NAMESPACE, Translatable};
 use crate::menu::{BACKGROUND, BUTTON_BOTTOM_PADDING, BUTTON_HEIGHT, BUTTON_SCALE, BUTTON_TEXT_SIZE, BUTTON_WIDTH, NORMAL_BUTTON, TEXT_MARGIN};
 use crate::menu::button::{ButtonColor, ButtonDownImage, ButtonImageBundle, ButtonUpImage, PreviousButtonInteraction, PreviousButtonProperties};
-use crate::networking::client::disconnect;
-use crate::networking::{client, DisconnectReason, protocol};
+use crate::client;
+use crate::client::disconnect;
+use crate::networking::{DisconnectReason, protocol};
 use crate::networking::error::{NetworkError, NETWORK_ERROR_MESSAGE};
 use crate::util::nonfatal_error_systems;
 
@@ -283,6 +284,7 @@ fn button_action(
 							name: world_name.0.clone(),
 							id: WorldId(0),
 							tiles: default(),
+							tile_sprites: default(),
 						}
 					);
 					client::send_message!(client, DefaultChannel::ReliableOrdered, protocol::ClientMessage::EnterWorldRequest(world_name.0.clone()));

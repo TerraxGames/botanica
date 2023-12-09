@@ -9,8 +9,6 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 pub mod protocol;
-pub mod client;
-pub mod server;
 pub mod debug;
 pub mod error;
 

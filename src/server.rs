@@ -252,15 +252,15 @@ fn client_message(
 				let player = player_query.get(*player_entity.unwrap())?;
 				
 				// check if this player is banned & kick 'em if they are
-				if world.bans().contains_key(&player.0.username) {
-					let ban = world.bans().get(&player.0.username).unwrap();
+				if world.bans.contains_key(&player.0.username) {
+					let ban = world.bans.get(&player.0.username).unwrap();
 					send_message!(server, client_id, DefaultChannel::ReliableOrdered, protocol::ServerResponse::EnterWorldDeny(protocol::WorldDenyReason::Banned(ban.reason().to_string(), ban.until())));
 					// todo: unload world if no other players are present
 					return Ok(())
 				}
 				
-				send_message!(server, client_id, DefaultChannel::ReliableOrdered, protocol::ServerResponse::EnterWorldAccept(world.id()));
-				send_message!(server, client_id, DefaultChannel::ReliableOrdered, protocol::ServerMessage::WorldTiles(world.tiles().clone()))
+				send_message!(server, client_id, DefaultChannel::ReliableOrdered, protocol::ServerResponse::EnterWorldAccept(world.id));
+				send_message!(server, client_id, DefaultChannel::ReliableOrdered, protocol::ServerMessage::WorldTiles(world.tiles.clone()))
 			}
 			ClientMessage::ChatMessage(target, content) => {
 				let player = player_query.get(*players.0.get(&client_id).unwrap())?;

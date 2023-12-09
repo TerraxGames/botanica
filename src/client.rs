@@ -65,15 +65,16 @@ macro_rules! send_message {
 
 pub(crate) use send_message;
 
-use super::protocol::ClientId;
+use networking::protocol::ClientId;
 
-#[derive(Debug, Resource)]
-pub struct LocalPlayer(pub Entity);
+#[derive(Debug, Default, Component)]
+pub struct LocalPlayer;
 
 #[derive(Debug, Bundle)]
 struct LocalPlayerBundle {
 	data: PlayerData,
 	client_id: ClientId,
+	local_player: LocalPlayer,
 }
 
 #[derive(Debug, Resource)]
@@ -96,15 +97,16 @@ fn setup(
 	
 	let client_id = time_since_epoch().as_millis() as u64;
 	
-	let local_player_entity = commands.spawn(
+	// spawn local player
+	commands.spawn(
 		LocalPlayerBundle {
 			data: PlayerData {
 				username: username.clone(),
 			},
 			client_id: ClientId(client_id),
+			local_player: default(),
 		}
-	).id();
-	commands.insert_resource(LocalPlayer(local_player_entity));
+	);
 	
 	let client_addr = "0.0.0.0:0"; // request dynamic port
 	let socket = UdpSocket::bind(&client_addr).expect(&format!("Failed to bind to address \"{}\"", client_addr)); // fixme: kick to disconnect screen

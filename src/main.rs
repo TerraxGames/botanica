@@ -17,7 +17,7 @@ use crate::asset::locale::{LocaleAsset, LocaleAssetLoader};
 use crate::env::EnvType;
 use crate::i18n::Translatable;
 use crate::identifier::Identifier;
-use crate::networking::{client, server, Username};
+use crate::networking::Username;
 use crate::networking::debug::NetworkingDebugPlugin;
 use crate::registry::Registry;
 use crate::registry::tile::TileRegistry;
@@ -37,6 +37,8 @@ pub mod world;
 pub mod creature;
 pub mod state;
 pub mod save;
+pub mod client;
+pub mod server;
 
 pub const NAMESPACE: &'static str = "botanica";
 
