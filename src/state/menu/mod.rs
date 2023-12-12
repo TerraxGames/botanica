@@ -46,8 +46,8 @@ pub fn init_ui(
 	commands.spawn(
 		Camera2dBundle {
 			projection: OrthographicProjection {
-				scale: 1.0 / 8.0,
-				scaling_mode: ScalingMode::WindowSize(1.0),
+				scale: 1.0 / 4.0,
+				scaling_mode: ScalingMode::WindowSize(16.0),
 				near: -1000.0,
 				far: 1000.0,
 				..default()

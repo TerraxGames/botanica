@@ -385,6 +385,7 @@ fn set_tile_event(
 		let def = def.unwrap();
 		
 		if !def.is_air() { // spawn new tile if this isn't air
+			println!("{:?}", event.pos);
 			let raw_id = raw_tile_ids.get_raw_id(&event.id);
 			if raw_id.is_none() {
 				return Err(TileEventError::InvalidId(event.id.clone(), event.pos))
@@ -402,6 +403,7 @@ fn set_tile_event(
 			let mut image_path = format!("{NAMESPACE}/textures/tile/missingno.png");
 			if !def.is_missingno() {
 				image_path = format!("{}/textures/tile/{}.png", event.id.namespace(), event.id.path());
+			} else {
 				sprite_size.mul_assign(8.0);
 			}
 			
@@ -414,7 +416,7 @@ fn set_tile_event(
 			commands.spawn(
 				SpriteBundle {
 					texture: tile_image_handle,
-					global_transform: GlobalTransform::from_xyz(event.pos.0 as f32, event.pos.1 as f32, def.settings().salience().into_z()),
+					transform: Transform::from_xyz(event.pos.0 as f32, event.pos.1 as f32, def.settings().salience().into_z()),
 					sprite: Sprite {
 						custom_size: Some(sprite_size),
 						..default()
