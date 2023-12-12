@@ -172,9 +172,9 @@ fn check_assets_ready(
 				}
 				
 				// add air tile
-				raw_tile_ids.register(Identifier::from_str("missingno", "air"), RawId(-1));
+				raw_tile_ids.register(Identifier::from_str("null", "air"), RawId(-1));
 				// add missingno tile
-				raw_tile_ids.register(Identifier::from_str("missingno", "missingno"), RawId(-2));
+				raw_tile_ids.register(Identifier::from_str("null", "null"), RawId(-2));
 				
 				commands.insert_resource(raw_tile_ids);
 			}

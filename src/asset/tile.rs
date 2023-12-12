@@ -44,11 +44,11 @@ impl TileDef {
 	}
 	
 	pub fn is_air(&self) -> bool {
-		self.identifier.namespace() == "missingno" && self.identifier.path() == "air"
+		self.identifier.namespace() == "null" && self.identifier.path() == "air"
 	}
 	
 	pub fn is_missingno(&self) -> bool {
-		self.identifier.namespace() == "missingno" && self.identifier.path() == "missingno"
+		self.identifier.namespace() == "null" && self.identifier.path() == "null"
 	}
 }
 

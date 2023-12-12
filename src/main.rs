@@ -199,7 +199,7 @@ pub fn get_components_for_entity<'a>(
 	None
 }
 
-/// Loads the bytes of an asset
+/// Loads the bytes of an asset.
 pub async fn load_asset_bytes(
 	path: String,
 	asset_io: &dyn AssetIo,
