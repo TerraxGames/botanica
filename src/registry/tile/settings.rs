@@ -62,12 +62,12 @@ impl<'de> Deserialize<'de> for TileHardness {
 	}
 }
 
-/// The salience ("(fore|back)ground-ness") of the tile.
+/// The salience (foreground-ness/background-ness) of the tile.
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum TileSalience {
 	#[default]
-	Invisible = -1,
+	Invisible = -1000,
 	#[serde(alias = "bg")]
 	Background = 0,
 	#[serde(alias = "fg")]
