@@ -1,15 +1,30 @@
 use std::net::SocketAddr;
 use std::net::UdpSocket;
+use std::ops::MulAssign;
 use std::time::{Duration, Instant};
 
+use bevy::asset::LoadState;
 use bevy::prelude::*;
 use bevy_renet::RenetClientPlugin;
 use bevy_renet::transport::NetcodeClientPlugin;
 use renet::{ConnectionConfig, DefaultChannel, RenetClient};
 use renet::transport::{ClientAuthentication, NetcodeClientTransport};
 
+use crate::NAMESPACE;
+use crate::asset;
+use crate::asset::from_asset_loc;
+use crate::asset::tile::TileDef;
 use crate::networking;
+use crate::raw_id::RawIds;
+use crate::raw_id::tile::RawTileIds;
+use crate::registry::tile::TileRegistry;
+use crate::registry::tile::settings::TileSalience;
+use crate::tile::TileSprite;
+use crate::tile::WorldTile;
 use crate::world::ClientGameWorld;
+use crate::world::SetTileEvent;
+use crate::world::TILE_EVENT_ERROR_MESSAGE;
+use crate::world::TileEventError;
 use crate::{env, GameState, ServerConnectAddress, util};
 use crate::networking::{DisconnectReason, Ping, protocol, time_since_epoch, Username};
 use crate::networking::error::{NETWORK_ERROR_MESSAGE, NetworkError};
@@ -47,6 +62,17 @@ impl Plugin for NetworkingPlugin {
 						in_state(GameState::WorldSelect)
 							.or_else(in_state(GameState::LoadingWorld))
 							.or_else(in_state(GameState::InWorld))
+					)
+					.run_if(env::is_client)
+			)
+			.add_systems(
+				Update,
+				(
+					nonfatal_error_systems!(TILE_EVENT_ERROR_MESSAGE, TileEventError, set_tile_event),
+				)
+					.run_if(
+						in_state(GameState::InWorld)
+							.or_else(in_state(GameState::LoadingWorld))
 					)
 					.run_if(env::is_client)
 			);
@@ -253,9 +279,10 @@ fn server_message(
 	message_query: Query<(Entity, &ServerMessage)>,
 	mut client: ResMut<RenetClient>,
 	mut commands: Commands,
-	mut client_world: ResMut<ClientGameWorld>,
 	mut next_state: ResMut<NextState<GameState>>,
 	mut transport: ResMut<NetcodeClientTransport>,
+	raw_tile_ids: Res<RawTileIds>,
+	mut ev_set_tile: EventWriter<SetTileEvent>,
 ) -> Result<(), NetworkError> {
 	for (entity, message) in message_query.iter() {
 		commands.entity(entity).despawn();
@@ -271,7 +298,20 @@ fn server_message(
 				on_disconnect(networking::DisconnectReason::Disconnected(reason.clone()), &mut next_state, &mut transport, &mut client);
 			},
 			ServerMessage::WorldTiles(tiles) => {
-				client_world.tiles = tiles.clone();
+				for (pos, tile) in tiles.clone() {
+					let id = raw_tile_ids.get_id(tile.0);
+					if id.is_none() {
+						return Err(NetworkError::TileEventError(TileEventError::InvalidRawId(tile.0, pos)))
+					}
+					
+					ev_set_tile.send(
+						SetTileEvent {
+							pos,
+							id: id.unwrap().clone(),
+							data: tile.1,
+						}
+					);
+				}
 			},
 			_ => {},
 		}
@@ -284,7 +324,7 @@ fn server_response(
 	response_query: Query<(Entity, &ServerResponse)>,
 	mut next_state: ResMut<NextState<GameState>>,
 	mut commands: Commands,
-	mut client_world: ResMut<ClientGameWorld>,
+	mut client_world: Option<ResMut<ClientGameWorld>>,
 ) -> Result<(), NetworkError> {
 	for (entity, response) in response_query.iter() {
 		commands.entity(entity).despawn();
@@ -295,7 +335,9 @@ fn server_response(
 				commands.insert_resource(Ping(ping));
 			},
 			ServerResponse::EnterWorldAccept(world_id) => {
+				let client_world = client_world.as_mut().unwrap();
 				client_world.id = *world_id;
+				
 				next_state.set(GameState::LoadingWorld);
 			},
 			ServerResponse::EnterWorldDeny(reason) => {
@@ -303,6 +345,84 @@ fn server_response(
 				println!("Failed to enter world. Reason: {reason:?}");
 			},
 			_ => {},
+		}
+	}
+	
+	Ok(())
+}
+
+fn set_tile_event(
+	mut client_world: ResMut<ClientGameWorld>,
+	mut ev_set_tile: EventReader<SetTileEvent>,
+	mut commands: Commands,
+	tile_registry: Res<TileRegistry>,
+	raw_tile_ids: Res<RawTileIds>,
+	tile_def_assets: Res<Assets<TileDef>>,
+	asset_server: Res<AssetServer>,
+) -> Result<(), TileEventError> {
+	for event in ev_set_tile.iter() {
+		// clear current tile
+		client_world.tiles.remove(&event.pos);
+		let tile_sprite = client_world.tile_sprites.remove(&event.pos);
+		if let Some(tile_sprite) = tile_sprite {
+			let sprite_commands = commands.get_entity(tile_sprite);
+			if let Some(sprite_commands) = sprite_commands {
+				sprite_commands.despawn_recursive();
+			}
+		}
+		
+		let def_handle = tile_registry.get(&event.id);
+		if def_handle.is_none() {
+			println!("registry");
+			return Err(TileEventError::TileDefNotFound(event.id.clone(), event.pos))
+		}
+		
+		let def = tile_def_assets.get(&def_handle.unwrap());
+		if def.is_none() {
+			println!("assets");
+			return Err(TileEventError::TileDefNotFound(event.id.clone(), event.pos))
+		}
+		let def = def.unwrap();
+		
+		if !def.is_air() { // spawn new tile if this isn't air
+			println!("{def:?}");
+			let raw_id = raw_tile_ids.get_raw_id(&event.id);
+			if raw_id.is_none() {
+				return Err(TileEventError::InvalidId(event.id.clone(), event.pos))
+			}
+			
+			client_world.tiles.insert(event.pos.clone(), WorldTile(raw_id.unwrap(), event.data.clone()));
+			
+			// don't render the tile if it's invisible
+			if def.settings().salience() == TileSalience::Invisible {
+				return Ok(())
+			}
+			
+			let mut sprite_size = Vec2::new(1.0, 1.0);
+			
+			let mut image_path = format!("{NAMESPACE}/textures/tile/missingno.png");
+			if !def.is_missingno() {
+				image_path = format!("{}/textures/tile/{}.png", event.id.namespace(), event.id.path());
+				sprite_size.mul_assign(8.0);
+			}
+			
+			let mut tile_image_handle: Handle<Image> = asset_server.load(image_path);
+			if asset_server.get_load_state(tile_image_handle.clone()) != LoadState::Loaded { // if the texture isn't loaded, assign it a missingno texture
+				tile_image_handle = asset_server.load(format!("{NAMESPACE}/textures/tile/missingno.png"));
+				sprite_size.mul_assign(8.0);
+			}
+			
+			commands.spawn(
+				SpriteBundle {
+					texture: tile_image_handle,
+					global_transform: GlobalTransform::from_xyz(event.pos.0 as f32, event.pos.1 as f32, def.settings().salience().into_z()),
+					sprite: Sprite {
+						custom_size: Some(sprite_size),
+						..default()
+					},
+					..default()
+				}
+			);
 		}
 	}
 	

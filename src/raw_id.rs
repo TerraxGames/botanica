@@ -8,10 +8,23 @@ use crate::identifier::Identifier;
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Component)]
 pub struct RawId(pub i32);
 
+impl RawId {
+	#[inline]
+	pub fn is_air(&self) -> bool {
+		self.0 == -1
+	}
+	
+	#[inline]
+	pub fn is_missingno(&self) -> bool {
+		self.0 == -2
+	}
+}
+
+// fixme: make this implement Debug rather than Display
 impl std::fmt::Display for RawId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("RawId(0x{:X})", self.0))
-    }
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		f.write_fmt(format_args!("RawId(0x{:X})", self.0))
+	}
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq, TypeUuid, TypePath)]
@@ -64,12 +77,12 @@ impl AssetLoader for RawIdsLoader {
 			let default_namespace = load_context.path().ancestors().nth(2).expect("raw ID file should be in directory \"<namespace>/ids\"").file_name().expect("path should not contain \"..\"").to_string_lossy().to_string();
 			let id_vec: Vec<Identifier> = ron::de::from_bytes(bytes)?;
 			let mut ids = HashMap::new();
-			for (i, mut id) in id_vec.into_iter().enumerate() {
-				if id.namespace() == "null" {
-					id = Identifier::new(default_namespace.clone(), id.id().to_string());
-				}
+			for (i, mut path) in id_vec.into_iter().enumerate() {
+				if path.namespace() == "null" {
+					path = Identifier::new(default_namespace.clone(), path.path().to_string());
+				} // TODO: add "null" check for ID
 				
-				ids.insert(id, RawId(i as i32));
+				ids.insert(path, RawId(i as i32));
 			}
 			
 			load_context.set_default_asset(LoadedAsset::new(RawIds(ids)));

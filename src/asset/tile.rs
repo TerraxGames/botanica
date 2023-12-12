@@ -25,7 +25,7 @@ pub struct TileDef {
 impl TileDef {
 	pub fn new(identifier: Identifier, settings: TileSettings) -> Self {
 		Self {
-			name: Translatable::new(format!("{}:tile.name.{}", identifier.namespace(), identifier.id())),
+			name: Translatable::new(format!("{}:tile.name.{}", identifier.namespace(), identifier.path())),
 			identifier,
 			settings,
 		}
@@ -42,6 +42,14 @@ impl TileDef {
 	pub fn identifier(&self) -> &Identifier {
 		&self.identifier
 	}
+	
+	pub fn is_air(&self) -> bool {
+		self.identifier.namespace() == "missingno" && self.identifier.path() == "air"
+	}
+	
+	pub fn is_missingno(&self) -> bool {
+		self.identifier.namespace() == "missingno" && self.identifier.path() == "missingno"
+	}
 }
 
 #[derive(Default)]
@@ -55,17 +63,17 @@ impl AssetLoader for TileDefLoader {
 	) -> bevy::utils::BoxedFuture<'a, anyhow::Result<(), anyhow::Error>> {
 		Box::pin(async move {
 			let mut def: TileDef = ron::de::from_bytes(bytes)?;
-			let default_id = load_context.path().file_name().expect("file path should not terminate with \"..\"").to_string_lossy().to_string().replace(".tile.ron", "");
-			let default_namespace = load_context.path().ancestors().nth(1).expect("tile definition file should be in directory \"<namespace>/tiles\"").to_string_lossy().to_string();
-			if def.identifier.id() == "null" && def.identifier.namespace() == "null" {
-				def.identifier = Identifier::new(default_namespace, default_id);
+			let default_path = load_context.path().file_name().expect("file path should not terminate with \"..\"").to_string_lossy().to_string().replace(".tile.ron", "");
+			let default_namespace = load_context.path().ancestors().nth(2).expect("tile definition file should be in directory \"<namespace>/tiles\"").file_name().expect("directory name should not end in ..").to_string_lossy().to_string();
+			if def.identifier.path() == "null" && def.identifier.namespace() == "null" {
+				def.identifier = Identifier::new(default_namespace, default_path);
 			}
 			
 			if def.name().key() == "null" {
-				def.name = Translatable::new(format!("{}:tile.name.{}", def.identifier.namespace(), def.identifier.id()));
+				def.name = Translatable::new(format!("{}:tile.name.{}", def.identifier.namespace(), def.identifier.path()));
 			}
 			
-			load_context.set_labeled_asset(&def.identifier.to_string(), LoadedAsset::new(def));
+			load_context.set_default_asset(LoadedAsset::new(def));
 			
 			Ok(())
 		})

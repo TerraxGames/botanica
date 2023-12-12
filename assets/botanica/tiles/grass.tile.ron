@@ -1,4 +1,6 @@
-TileDef(
-	hardness: 0.4,
-	salience: fg,
+(
+	settings: (
+		hardness: 0.4,
+		salience: fg,
+	),
 )

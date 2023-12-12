@@ -5,21 +5,21 @@ use serde::{Serialize, Deserialize, de::Visitor};
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct Identifier {
 	namespace: String,
-	id: String,
+	path: String,
 }
 
 impl Identifier {
-	pub fn new(namespace: String, id: String) -> Self {
+	pub fn new(namespace: String, path: String) -> Self {
 		Self {
 			namespace,
-			id,
+			path,
 		}
 	}
 
-	pub fn from_str(namespace: &str, id: &str) -> Self {
+	pub fn from_str(namespace: &str, path: &str) -> Self {
 		Self {
 			namespace: namespace.to_string(),
-			id: id.to_string(),
+			path: path.to_string(),
 		}
 	}
 
@@ -27,8 +27,8 @@ impl Identifier {
 		self.namespace.as_str()
 	}
 
-	pub fn id(&self) -> &str {
-		self.id.as_str()
+	pub fn path(&self) -> &str {
+		self.path.as_str()
 	}
 }
 
@@ -36,7 +36,7 @@ impl Serialize for Identifier {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer {
-        serializer.serialize_str(format!("{}:{}", self.namespace, self.id).as_str())
+        serializer.serialize_str(format!("{}:{}", self.namespace, self.path).as_str())
     }
 }
 
@@ -68,7 +68,7 @@ impl<'de> Deserialize<'de> for Identifier {
 					return Ok(
 						Identifier {
 							namespace: "null".to_string(), // we do magic later to make these the default namespace
-							id: first.unwrap().to_string(),
+							path: first.unwrap().to_string(),
 						}
 					)
 				}
@@ -76,7 +76,7 @@ impl<'de> Deserialize<'de> for Identifier {
 				Ok(
 					Identifier {
 						namespace: first.unwrap().to_string(),
-						id: second.unwrap().to_string(),
+						path: second.unwrap().to_string(),
 					}
 				)
 			}
@@ -94,6 +94,6 @@ impl<'de> Deserialize<'de> for Identifier {
 
 impl Display for Identifier {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		f.write_fmt(format_args!("{}:{}", self.namespace, self.id))
+		f.write_fmt(format_args!("{}:{}", self.namespace, self.path))
 	}
 }

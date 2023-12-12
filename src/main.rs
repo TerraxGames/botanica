@@ -11,6 +11,7 @@ use raw_id::{RawIds, RawIdsLoader};
 use serde::{Deserialize, Serialize};
 
 use state::*;
+use world::SetTileEvent;
 
 use crate::asset::from_asset_loc;
 use crate::asset::locale::{LocaleAsset, LocaleAssetLoader};
@@ -118,8 +119,9 @@ pub fn main() {
 		.init_resource::<networking::stats::PlayerNetStats>()
 		.insert_resource(env)
 		.insert_resource(headless)
-		.init_resource::<TileRegistry>() // todo: tile registry and other registries
+		.init_resource::<TileRegistry>()
 		.init_resource::<loading::AssetsLoading>()
+		.add_event::<SetTileEvent>()
 		.add_plugins(loading::LoadingPlugin);
 	
 	if headless.0 && env == EnvType::Server {
@@ -205,6 +207,6 @@ pub async fn load_asset_bytes(
 	asset_io.load_path(path.as_ref()).await
 }
 
-fn id(id: &str) -> Identifier {
-	Identifier::from_str(NAMESPACE, id)
+fn id(path: &str) -> Identifier {
+	Identifier::from_str(NAMESPACE, path)
 }

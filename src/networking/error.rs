@@ -12,4 +12,6 @@ pub enum NetworkError {
 	SaveError(#[from] save::error::SaveError),
 	#[error("error querying entity: {0}")]
 	QueryEntityError(#[from] bevy::ecs::query::QueryEntityError),
+	#[error("tile event error: {0}")]
+	TileEventError(#[from] crate::world::TileEventError),
 }

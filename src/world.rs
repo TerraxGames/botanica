@@ -4,14 +4,16 @@ use std::time::SystemTime;
 
 use bevy::prelude::*;
 use serde::{Serialize, Deserialize};
+use thiserror::Error;
 
 use crate::TilePos;
+use crate::identifier::Identifier;
 use crate::networking::Username;
+use crate::raw_id::RawId;
 use crate::raw_id::tile::RawTileIds;
 use crate::save::error::SaveError;
-use crate::save::format::WorldSave;
 use crate::save::open_or_gen_world;
-use crate::tile::WorldTile;
+use crate::tile::{WorldTile, TileData};
 
 #[derive(Resource, Default)]
 pub struct ServerGameWorlds(HashMap<String, ServerGameWorld>);
@@ -88,10 +90,23 @@ impl WorldBan {
 
 /// An event that sets a tile.
 #[derive(Event)]
-pub struct SetTile {
+pub struct SetTileEvent {
 	pub pos: TilePos,
-	pub tile: WorldTile,
+	pub id: Identifier,
+	pub data: TileData,
 }
+
+#[derive(Debug, Error)]
+pub enum TileEventError {
+	#[error("raw id for {0} (at {1:?}) does not exist")]
+	InvalidId(Identifier, TilePos),
+	#[error("tile definition for {0} (at {1:?}) does not exist")]
+	TileDefNotFound(Identifier, TilePos),
+	#[error("{0} (at {1:?}) does not exist")]
+	InvalidRawId(RawId, TilePos),
+}
+
+pub const TILE_EVENT_ERROR_MESSAGE: &'static str = "A TileEventError has occurred";
 
 #[derive(Clone)]
 pub struct ServerGameWorld {

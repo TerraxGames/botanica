@@ -3,7 +3,11 @@ use bevy::prelude::*;
 
 use crate::DEFAULT_LOCALE;
 use crate::asset::locale::LocaleAsset;
+use crate::asset::tile::TileDef;
 use crate::i18n::{TranslationServer, CurrentLocale};
+use crate::identifier::Identifier;
+use crate::raw_id::RawId;
+use crate::registry::tile::TileRegistry;
 use crate::util::fatal_error_systems;
 use crate::{EnvType, from_asset_loc, GameState, NAMESPACE, raw_id::{RawIds, tile::RawTileIds}};
 
@@ -52,10 +56,29 @@ fn load_assets(
 	asset_server: Res<AssetServer>,
 	mut loading: ResMut<AssetsLoading>,
 	asset_paths: Res<AssetPaths>,
+	mut tile_registry: ResMut<TileRegistry>,
 ) -> anyhow::Result<()> {
 	println!("Loading assets");
 	
 	for asset_path in asset_paths.iter() {
+		// add handles to tile definitions in tile registry
+		if let Ok(tiles) = asset_server.load_folder(from_asset_loc(asset_path, "tiles")) {
+			for handle in tiles {
+				let handle: Handle<TileDef> = handle.typed();
+				let path = asset_server.get_handle_path(handle.id());
+				if let Some(path) = path {
+					let mut path_buf = path.path().to_path_buf();
+					path_buf.set_extension("");
+					path_buf.set_extension("");
+					let name = path_buf.file_name();
+					if let Some(name) = name {
+						let name = name.to_string_lossy().to_string();
+						tile_registry.register(handle, Identifier::new(asset_path.clone(), name));
+					}
+				}
+			}
+		}
+		
 		// load all locale files
 		let locale = asset_server.load_folder(from_asset_loc(asset_path, "locale"));
 		// load all fonts
@@ -147,6 +170,11 @@ fn check_assets_ready(
 						}
 					}
 				}
+				
+				// add air tile
+				raw_tile_ids.register(Identifier::from_str("missingno", "air"), RawId(-1));
+				// add missingno tile
+				raw_tile_ids.register(Identifier::from_str("missingno", "missingno"), RawId(-2));
 				
 				commands.insert_resource(raw_tile_ids);
 			}
