@@ -385,7 +385,6 @@ fn set_tile_event(
 		let def = def.unwrap();
 		
 		if !def.is_air() { // spawn new tile if this isn't air
-			println!("{def:?}");
 			let raw_id = raw_tile_ids.get_raw_id(&event.id);
 			if raw_id.is_none() {
 				return Err(TileEventError::InvalidId(event.id.clone(), event.pos))
