@@ -34,7 +34,7 @@ pub fn open_or_gen_world(name: &str, raw_tile_ids: &RawTileIds) -> Result<WorldS
 				let mut tiles = HashMap::default();
 				let grass = WorldTile::new(&crate::id("grass"), raw_tile_ids).unwrap();
 				for x in -16..=16 {
-					tiles.insert(TilePos(x, 0), grass.clone());
+					tiles.insert(TilePos { x, y: 0 }, grass.clone());
 				}
 				
 				Ok(WorldSave {

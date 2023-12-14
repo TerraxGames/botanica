@@ -416,7 +416,7 @@ fn set_tile_event(
 			commands.spawn(
 				SpriteBundle {
 					texture: tile_image_handle,
-					transform: Transform::from_xyz(event.pos.0 as f32, event.pos.1 as f32, def.settings().salience().into_z()),
+					transform: Transform::from_xyz(event.pos.x as f32, event.pos.y as f32, def.settings().salience().into_z()),
 					sprite: Sprite {
 						custom_size: Some(sprite_size),
 						..default()

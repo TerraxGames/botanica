@@ -72,6 +72,7 @@ pub enum TileSalience {
 	Background = 0,
 	#[serde(alias = "fg")]
 	Foreground = 1,
+	Overlay = 2,
 }
 
 impl TileSalience {

@@ -71,8 +71,8 @@ impl WorldSave {
 			.map(
 				|(pos, tile)| {
 					let mut vec: Vec<u8> = vec![];
-					vec.extend_from_slice(&pos.0.to_le_bytes());
-					vec.extend_from_slice(&pos.1.to_le_bytes());
+					vec.extend_from_slice(&pos.x.to_le_bytes());
+					vec.extend_from_slice(&pos.y.to_le_bytes());
 					vec.extend_from_slice(&tile.0.0.to_le_bytes());
 					vec.push(tile.1.0);
 					vec
@@ -148,7 +148,7 @@ impl WorldSave {
 								None => return Err(SaveError::IdNonexistent("tile".to_string(), id.clone())),
 							};
 							
-							Ok((TilePos(i32::from_le_bytes(x), i32::from_le_bytes(y)), WorldTile(raw_id, TileData(chunk[13]))))
+							Ok((TilePos { x: i32::from_le_bytes(x), y: i32::from_le_bytes(y) }, WorldTile(raw_id, TileData(chunk[13]))))
 						}
 					)
 					.collect::<Result<HashMap<_, _>, _>>()?;

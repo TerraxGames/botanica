@@ -1,6 +1,8 @@
 use bevy::prelude::*;
 
+use crate::Position;
+
 pub mod player;
 
-#[derive(Debug, Default, Copy, Clone, Component)]
+#[derive(Component, Debug, Default, Copy, Clone)]
 pub struct Creature;

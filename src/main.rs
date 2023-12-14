@@ -40,6 +40,7 @@ pub mod state;
 pub mod save;
 pub mod client;
 pub mod server;
+pub mod cursor;
 
 pub const NAMESPACE: &'static str = "botanica";
 
@@ -101,11 +102,17 @@ fn default_asset_plugin() -> AssetPlugin {
 	}
 }
 
-#[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub struct TilePos(pub i32, pub i32);
+#[derive(Component, Debug, Default, Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub struct TilePos {
+	pub x: i32,
+	pub y: i32,
+}
 
-#[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Component)]
-pub struct Position(pub f32, pub f32);
+#[derive(Component, Debug, Default, Copy, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Position {
+	pub x: f32,
+	pub y: f32,
+}
 
 pub fn main() {
 	let env = EnvType::try_from(std::env::var("ENVIRONMENT").unwrap_or("client".to_string())).unwrap(); // todo: force EnvType environment variable
