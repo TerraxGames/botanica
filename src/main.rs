@@ -23,7 +23,7 @@ use crate::networking::Username;
 use crate::networking::debug::NetworkingDebugPlugin;
 use crate::registry::Registry;
 use crate::registry::tile::TileRegistry;
-use crate::server::ServerPort;
+use crate::server::networking::ServerPort;
 
 pub mod registry;
 pub mod identifier;
@@ -171,11 +171,11 @@ pub fn main() {
 	
 	if env == EnvType::Client {
 		app
-			.add_plugins(client::NetworkingPlugin)
+			.add_plugins(client::networking::NetworkingPlugin)
 			.insert_resource(username);
 	} else {
 		app
-			.add_plugins(server::NetworkingPlugin);
+			.add_plugins(server::networking::NetworkingPlugin);
 	}
 	
 	app.run();
