@@ -1,6 +1,7 @@
 use std::net::{AddrParseError, SocketAddr};
 use std::str::FromStr;
 
+use asset::image::MissingnoImagePlugin;
 use asset::tile::{TileDef, TileDefLoader};
 use bevy::asset::{AssetIo, AssetIoError};
 use bevy::ecs::archetype::Archetypes;
@@ -32,7 +33,7 @@ pub mod asset;
 pub mod i18n;
 pub mod env;
 pub mod networking;
-pub mod util;
+pub mod utils;
 pub mod player;
 pub mod world;
 pub mod creature;
@@ -41,6 +42,7 @@ pub mod save;
 pub mod client;
 pub mod server;
 pub mod cursor;
+pub mod physics;
 
 pub const NAMESPACE: &'static str = "botanica";
 
@@ -129,7 +131,8 @@ pub fn main() {
 		.init_resource::<TileRegistry>()
 		.init_resource::<loading::AssetsLoading>()
 		.add_event::<SetTileEvent>()
-		.add_plugins(loading::LoadingPlugin);
+		.add_plugins(loading::LoadingPlugin)
+		.add_plugins(physics::PhysicsPlugin);
 	
 	if headless.0 && env == EnvType::Server {
 		app
@@ -141,6 +144,7 @@ pub fn main() {
 				DefaultPlugins
 					.set(default_asset_plugin())
 					.set(ImagePlugin::default_nearest()) // so our sprites appear crisp and clear
+					.add_after::<ImagePlugin, _>(MissingnoImagePlugin)
 			)
 			.add_plugins((EguiPlugin, NetworkingDebugPlugin))
 			.add_plugins(

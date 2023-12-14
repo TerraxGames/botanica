@@ -8,7 +8,7 @@ use crate::i18n::{TranslationServer, CurrentLocale};
 use crate::identifier::Identifier;
 use crate::raw_id::RawId;
 use crate::registry::tile::TileRegistry;
-use crate::util::fatal_error_systems;
+use crate::utils::fatal_error_systems;
 use crate::{EnvType, from_asset_loc, GameState, NAMESPACE, raw_id::{RawIds, tile::RawTileIds}};
 
 #[derive(Deref, DerefMut, Resource)]

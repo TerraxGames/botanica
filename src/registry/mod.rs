@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use crate::utils::BevyHashMap;
 
 use bevy::{asset::{Handle, AssetDynamic, Asset}, reflect::{TypeUuid, TypePath}};
 
@@ -12,14 +12,14 @@ pub mod def;
 #[derive(Default)]
 pub struct Registry<T>
 	where T: TypeUuid + TypePath + AssetDynamic + Asset {
-	handles: HashMap<Identifier, Handle<T>>,
+	handles: BevyHashMap<Identifier, Handle<T>>,
 }
 
 impl<T> Registry<T>
 	where T: TypeUuid + TypePath + AssetDynamic + Asset {
 	pub fn new() -> Self {
 		Self {
-			handles: HashMap::new(),
+			handles: BevyHashMap::new(),
 		}
 	}
 	

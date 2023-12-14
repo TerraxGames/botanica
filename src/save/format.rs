@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use crate::utils::BevyHashMap;
 use bevy::prelude::default;
 use bincode::Options;
 use serde::Deserialize;
@@ -10,7 +10,7 @@ use crate::raw_id::tile::RawTileIds;
 use crate::tile::TileData;
 use crate::tile::WorldTile;
 use crate::TilePos;
-use crate::util;
+use crate::utils;
 use crate::world::WorldBan;
 
 use super::error::SaveError;
@@ -20,8 +20,8 @@ pub const SAVE_VERSION: u32 = 0x0;
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct WorldSave {
-	pub tiles: HashMap<TilePos, WorldTile>,
-	pub bans: HashMap<Username, WorldBan>,
+	pub tiles: BevyHashMap<TilePos, WorldTile>,
+	pub bans: BevyHashMap<Username, WorldBan>,
 }
 
 #[derive(Debug, Copy, Clone, Default, Serialize, Deserialize)]
@@ -64,7 +64,7 @@ struct OffsetTable {
 
 impl WorldSave {
 	pub fn serialize(&self, raw_tile_ids: &RawTileIds) -> Result<Vec<u8>, SaveError> {
-		let saved_raw_tile_ids: Vec<u8> = util::serialize(raw_tile_ids)?;
+		let saved_raw_tile_ids: Vec<u8> = utils::serialize(raw_tile_ids)?;
 		
 		let tiles: Vec<u8> = self.tiles
 			.iter()
@@ -81,7 +81,7 @@ impl WorldSave {
 			.flatten()
 			.collect();
 		
-		let bans: Vec<u8> = util::serialize(&self.bans)?;
+		let bans: Vec<u8> = utils::serialize(&self.bans)?;
 		
 		let raw_tile_ids_offset: FileOffset = MAGIC.len().into();
 		let tiles_offset: FileOffset = raw_tile_ids_offset + saved_raw_tile_ids.len();
@@ -95,7 +95,7 @@ impl WorldSave {
 		let mut vec: Vec<u8> = vec![];
 		vec.extend_from_slice(&MAGIC);
 		vec.extend_from_slice(&SAVE_VERSION.to_le_bytes());
-		vec.extend(util::serialize(&offset_table)?);
+		vec.extend(utils::serialize(&offset_table)?);
 		vec.extend(saved_raw_tile_ids);
 		vec.extend(tiles);
 		vec.extend(bans);
@@ -120,10 +120,10 @@ impl WorldSave {
 		
 		match version {
 			0 => {
-				let offset_table_size = util::OPTIONS_LE.serialized_size::<OffsetTable>(&default())? as usize;
-				let offset_table: OffsetTable = util::deserialize(&vec[8..offset_table_size])?;
+				let offset_table_size = utils::OPTIONS_LE.serialized_size::<OffsetTable>(&default())? as usize;
+				let offset_table: OffsetTable = utils::deserialize(&vec[8..offset_table_size])?;
 				
-				let saved_raw_tile_ids: RawTileIds = util::deserialize(&vec[offset_table.raw_tile_ids_offset.into()..offset_table.tiles_offset.into()])?;
+				let saved_raw_tile_ids: RawTileIds = utils::deserialize(&vec[offset_table.raw_tile_ids_offset.into()..offset_table.tiles_offset.into()])?;
 				
 				let tiles = vec[offset_table.tiles_offset.into()..offset_table.bans_offset.into()]
 					.to_vec()
@@ -151,9 +151,9 @@ impl WorldSave {
 							Ok((TilePos { x: i32::from_le_bytes(x), y: i32::from_le_bytes(y) }, WorldTile(raw_id, TileData(chunk[13]))))
 						}
 					)
-					.collect::<Result<HashMap<_, _>, _>>()?;
+					.collect::<Result<BevyHashMap<_, _>, _>>()?;
 				
-				let bans: HashMap<Username, WorldBan> = util::deserialize(&vec[offset_table.bans_offset.into()..])?;
+				let bans: BevyHashMap<Username, WorldBan> = utils::deserialize(&vec[offset_table.bans_offset.into()..])?;
 				
 				Ok(
 					Self {

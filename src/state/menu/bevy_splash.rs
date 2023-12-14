@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
 use crate::i18n::{TranslationServer, CurrentLocale};
+use crate::utils::asset::load_image;
 use crate::{asset, DEFAULT_LOCALE, despawn_with, from_asset_loc, GameState, LocaleAsset, NAMESPACE, Translatable};
 use crate::state::menu::{BACKGROUND, TEXT_MARGIN};
 
@@ -40,8 +41,8 @@ fn setup(
 	current_locale: Res<CurrentLocale>,
 	translation_server: Res<TranslationServer>,
 ) {
-	let monogram = asset_server.get_handle(from_asset_loc(NAMESPACE, "fonts/monogram/monogram-extended.ttf"));
-	let bevy_logo = asset_server.get_handle(from_asset_loc(NAMESPACE, "textures/ui/branding/bevy_logo.png"));
+	let monogram = asset_server.load(format!("{NAMESPACE}/fonts/monogram/monogram-extended.ttf"));
+	let bevy_logo = asset_server.load(format!("{NAMESPACE}/textures/ui/branding/bevy_logo.png"));
 	
 	// root
 	commands

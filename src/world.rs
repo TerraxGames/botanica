@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use crate::utils::BevyHashMap;
 use std::hash::{BuildHasher, Hasher};
 use std::time::SystemTime;
 
@@ -16,7 +16,7 @@ use crate::save::open_or_gen_world;
 use crate::tile::{WorldTile, TileData};
 
 #[derive(Resource, Default)]
-pub struct ServerGameWorlds(HashMap<String, ServerGameWorld>);
+pub struct ServerGameWorlds(BevyHashMap<String, ServerGameWorld>);
 
 impl ServerGameWorlds {
 	/// Returns [Some]\(&[GameWorld]) if the world has been loaded. Returns [None] if the world is unloaded.
@@ -111,9 +111,9 @@ pub const TILE_EVENT_ERROR_MESSAGE: &'static str = "A TileEventError has occurre
 #[derive(Clone)]
 pub struct ServerGameWorld {
 	pub name: String,
-	pub tiles: HashMap<TilePos, WorldTile>,
+	pub tiles: BevyHashMap<TilePos, WorldTile>,
 	pub players: Vec<Entity>,
-	pub bans: HashMap<Username, WorldBan>,
+	pub bans: BevyHashMap<Username, WorldBan>,
 	pub id: WorldId,
 }
 
@@ -121,8 +121,8 @@ pub struct ServerGameWorld {
 pub struct ClientGameWorld {
 	pub name: String,
 	pub id: WorldId,
-	pub tiles: HashMap<TilePos, WorldTile>,
-	pub tile_sprites: HashMap<TilePos, Entity>,
+	pub tiles: BevyHashMap<TilePos, WorldTile>,
+	pub tile_sprites: BevyHashMap<TilePos, Entity>,
 }
 
 impl ClientGameWorld {

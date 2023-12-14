@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use crate::utils::BevyHashMap;
 
 use bevy::prelude::*;
 use serde::de::Visitor;
@@ -77,14 +77,14 @@ impl Translatable {
 pub struct TranslationServer {
 	asset_server: AssetServer,
 	/// A map of locales to maps of namespaces to maps of translation keys to translations.
-	locales: HashMap<String, HashMap<String, HashMap<String, String>>>,
+	locales: BevyHashMap<String, BevyHashMap<String, BevyHashMap<String, String>>>,
 }
 
 impl TranslationServer {
 	pub fn new(asset_server: AssetServer) -> Self {
 		Self {
 			asset_server,
-			locales: HashMap::new(),
+			locales: BevyHashMap::new(),
 		}
 	}
 	
@@ -102,8 +102,8 @@ impl TranslationServer {
 		let namespace_map = self.locales.get(locale.locale());
 		if namespace_map.is_none() {
 			let translation = self.load(namespace, key, locale.locale(), locale_assets)?;
-			let mut translation_maps = HashMap::new();
-			let mut translations = HashMap::new();
+			let mut translation_maps = BevyHashMap::new();
+			let mut translations = BevyHashMap::new();
 			translations.insert(key.to_string(), translation.clone());
 			translation_maps.insert(locale.locale().to_string(), translations);
 			self.locales.insert(namespace.to_string(), translation_maps);
@@ -114,7 +114,7 @@ impl TranslationServer {
 		if translations.is_none() {
 			let translation = self.load(namespace, key, locale.locale(), locale_assets)?;
 			let translation_maps = self.locales.get_mut(locale.locale()).unwrap();
-			let mut translations = HashMap::new();
+			let mut translations = BevyHashMap::new();
 			translations.insert(key.to_string(), translation.clone());
 			translation_maps.insert(namespace.to_string(), translations);
 			return Some(translation)
@@ -139,7 +139,7 @@ impl TranslationServer {
 		let namespace_map = match self.locales.get_mut(locale) {
 			Some(namespace_map) => namespace_map,
 			None => {
-				self.locales.insert(locale.to_string(), HashMap::new());
+				self.locales.insert(locale.to_string(), BevyHashMap::new());
 				self.locales.get_mut(locale).unwrap()
 			},
 		};
@@ -147,7 +147,7 @@ impl TranslationServer {
 		let translations = match namespace_map.get_mut(namespace) {
 			Some(translations) => translations,
 			None => {
-				namespace_map.insert(namespace.to_string(), HashMap::new());
+				namespace_map.insert(namespace.to_string(), BevyHashMap::new());
 				namespace_map.get_mut(namespace).unwrap()
 			}
 		};

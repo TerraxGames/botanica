@@ -4,6 +4,7 @@ use std::net::AddrParseError;
 use std::time::{Duration, SystemTime};
 
 use bevy::prelude::*;
+use bevy::utils::Uuid;
 use renet::transport::NETCODE_USER_DATA_BYTES;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -25,6 +26,16 @@ pub enum DisconnectReason {
 	AddrParseError(AddrParseError),
 	#[error("Disconnected by server: {0}")]
 	Disconnected(protocol::DisconnectReason),
+}
+
+/// Indicates that this entity should be synced between client & server and contains the entity's networking UUID. This is used to refer to the same entity across the network.
+#[derive(Component, Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct NetworkId(pub Uuid);
+
+impl Default for NetworkId {
+    fn default() -> Self {
+        Self(Uuid::new_v4())
+    }
 }
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Component, Resource)]
@@ -70,12 +81,12 @@ pub fn time_since_epoch() -> Duration {
 }
 
 pub(crate) mod stats {
-	use std::collections::HashMap;
+	use crate::utils::BevyHashMap;
 	
 	
 	use bevy::ecs::system::Resource;
-
-use crate::networking::protocol::ClientId;
+	
+	use crate::networking::protocol::ClientId;
 	
 	/// A player's network statistics
 	#[derive(Debug, Default, Clone)]
@@ -85,7 +96,7 @@ use crate::networking::protocol::ClientId;
 	}
 	
 	#[derive(Debug, Default, Clone, Resource)]
-	pub struct PlayerNetStats(HashMap<ClientId, PlayerNetStat>);
+	pub struct PlayerNetStats(BevyHashMap<ClientId, PlayerNetStat>);
 	
 	impl PlayerNetStats {
 		/// Retrieves an optional network statistics struct that corresponds to the client ID.

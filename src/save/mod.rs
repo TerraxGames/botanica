@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use crate::utils::BevyHashMap;
 
 use bevy::utils::default;
 
@@ -31,7 +31,7 @@ pub fn open_or_gen_world(name: &str, raw_tile_ids: &RawTileIds) -> Result<WorldS
 	if let Err(err) = world {
 		match err {
 			SaveError::WorldNonexistent => {
-				let mut tiles = HashMap::default();
+				let mut tiles = BevyHashMap::default();
 				let grass = WorldTile::new(&crate::id("grass"), raw_tile_ids).unwrap();
 				for x in -16..=16 {
 					tiles.insert(TilePos { x, y: 0 }, grass.clone());

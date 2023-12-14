@@ -1,42 +1,37 @@
 use std::net::SocketAddr;
 use std::net::UdpSocket;
-use std::ops::MulAssign;
 use std::time::{Duration, Instant};
 
-use bevy::asset::LoadState;
 use bevy::prelude::*;
+use bevy::render::texture::DEFAULT_IMAGE_HANDLE;
 use bevy_renet::RenetClientPlugin;
 use bevy_renet::transport::NetcodeClientPlugin;
 use renet::{ConnectionConfig, DefaultChannel, RenetClient};
 use renet::transport::{ClientAuthentication, NetcodeClientTransport};
 
-use crate::NAMESPACE;
-use crate::asset;
-use crate::asset::from_asset_loc;
 use crate::asset::tile::TileDef;
 use crate::networking;
-use crate::raw_id::RawIds;
 use crate::raw_id::tile::RawTileIds;
 use crate::registry::tile::TileRegistry;
 use crate::registry::tile::settings::TileSalience;
-use crate::tile::TileSprite;
 use crate::tile::WorldTile;
+use crate::utils::asset::load_image;
 use crate::world::ClientGameWorld;
 use crate::world::SetTileEvent;
 use crate::world::TILE_EVENT_ERROR_MESSAGE;
 use crate::world::TileEventError;
-use crate::{env, GameState, ServerConnectAddress, util};
+use crate::{env, GameState, ServerConnectAddress, utils};
 use crate::networking::{DisconnectReason, Ping, protocol, time_since_epoch, Username};
 use crate::networking::error::{NETWORK_ERROR_MESSAGE, NetworkError};
 use crate::networking::protocol::{PlayerData, ServerMessage, ServerResponse};
 use crate::player::Target;
-use crate::util::nonfatal_error_systems;
+use crate::utils::nonfatal_error_systems;
 
 pub struct NetworkingPlugin;
 
 impl Plugin for NetworkingPlugin {
 	fn build(&self, app: &mut App) {
-		app
+		let add_systems = app
 			.add_plugins(RenetClientPlugin)
 			.add_plugins(NetcodeClientPlugin)
 			.init_resource::<ServerConnectAddress>()
@@ -82,8 +77,8 @@ impl Plugin for NetworkingPlugin {
 macro_rules! send_message {
     ($client:expr, $channel_id:expr, $message:expr) => {
 		{
-			$crate::util::struct_enforce!($client, renet::RenetClient, ResMut<'_, renet::RenetClient>);
-			$crate::util::trait_enforce!($channel_id, Into<u8>);
+			$crate::utils::struct_enforce!($client, renet::RenetClient, ResMut<'_, renet::RenetClient>);
+			$crate::utils::trait_enforce!($channel_id, Into<u8>);
 			$client.send_message($channel_id, TryInto::<renet::Bytes>::try_into($message)?);
 		}
 	};
@@ -216,7 +211,7 @@ fn connecting(
 			send_message!(client, DefaultChannel::ReliableOrdered, protocol::ClientMessage::JoinRequest { protocol_ver: protocol::PROTOCOL_VER });
 		} else {
 			if let Some(buf) = client.receive_message(DefaultChannel::ReliableOrdered) {
-				let message = util::deserialize_be::<protocol::Message>(&buf)?;
+				let message = utils::deserialize_be::<protocol::Message>(&buf)?;
 				match message {
 					protocol::Message::ServerMessage(message) => {
 						match message {
@@ -259,7 +254,7 @@ fn client(
 	
 	for channel_id in 0..=2 {
 		while let Some(buf) = client.receive_message(channel_id) {
-			let message = util::deserialize_be::<protocol::Message>(&buf)?;
+			let message = utils::deserialize_be::<protocol::Message>(&buf)?;
 			match message {
 				protocol::Message::ServerMessage(message) => {
 					commands.spawn(message);
@@ -373,13 +368,11 @@ fn set_tile_event(
 		
 		let def_handle = tile_registry.get(&event.id);
 		if def_handle.is_none() {
-			println!("registry");
 			return Err(TileEventError::TileDefNotFound(event.id.clone(), event.pos))
 		}
 		
 		let def = tile_def_assets.get(&def_handle.unwrap());
 		if def.is_none() {
-			println!("assets");
 			return Err(TileEventError::TileDefNotFound(event.id.clone(), event.pos))
 		}
 		let def = def.unwrap();
@@ -398,19 +391,9 @@ fn set_tile_event(
 				return Ok(())
 			}
 			
-			let mut sprite_size = Vec2::new(1.0, 1.0);
-			
-			let mut image_path = format!("{NAMESPACE}/textures/tile/missingno.png");
-			if !def.is_missingno() {
-				image_path = format!("{}/textures/tile/{}.png", event.id.namespace(), event.id.path());
-			} else {
-				sprite_size.mul_assign(8.0);
-			}
-			
-			let mut tile_image_handle: Handle<Image> = asset_server.load(image_path);
-			if asset_server.get_load_state(tile_image_handle.clone()) != LoadState::Loaded { // if the texture isn't loaded, assign it a missingno texture
-				tile_image_handle = asset_server.load(format!("{NAMESPACE}/textures/tile/missingno.png"));
-				sprite_size.mul_assign(8.0);
+			let mut tile_image_handle: Handle<Image> = DEFAULT_IMAGE_HANDLE.typed();
+			if !def.is_missingno() { // if it isn't missingno, we can safely load the image
+				tile_image_handle = load_image(&asset_server, format!("{}/textures/tile/{}.png", event.id.namespace(), event.id.path()));
 			}
 			
 			commands.spawn(
@@ -418,7 +401,7 @@ fn set_tile_event(
 					texture: tile_image_handle,
 					transform: Transform::from_xyz(event.pos.x as f32, event.pos.y as f32, def.settings().salience().into_z()),
 					sprite: Sprite {
-						custom_size: Some(sprite_size),
+						custom_size: Some(Vec2::new(1.0, 1.0)),
 						..default()
 					},
 					..default()

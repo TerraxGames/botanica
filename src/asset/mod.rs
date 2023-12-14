@@ -1,5 +1,6 @@
 pub mod locale;
 pub mod tile;
+pub mod image;
 
 /// Gets the proper location of the asset at the given location with format `<namespace>:<asset>`
 pub fn from_asset_loc_raw(location: String) -> String {

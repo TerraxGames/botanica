@@ -1,6 +1,6 @@
-use std::collections::HashMap;
+use crate::utils::BevyHashMap;
 
-use bevy::{prelude::*, reflect::{TypePath, TypeUuid}, asset::{AssetLoader, LoadedAsset}};
+use bevy::{prelude::*, reflect::{TypePath, TypeUuid}, asset::{AssetLoader, LoadedAsset}, utils::hashbrown::hash_map::{Keys, Values}};
 use serde::{Deserialize, Serialize};
 
 use crate::identifier::Identifier;
@@ -29,7 +29,7 @@ impl std::fmt::Display for RawId {
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq, TypeUuid, TypePath)]
 #[uuid = "7e34fcef-ef6e-442b-8ec2-576fc73620bf"]
-pub struct RawIds(HashMap<Identifier, RawId>);
+pub struct RawIds(BevyHashMap<Identifier, RawId>);
 
 impl RawIds {
 	pub fn get_id(&self, raw_id: RawId) -> Option<&Identifier> {
@@ -41,11 +41,11 @@ impl RawIds {
 		Some(*self.0.get(id)?)
 	}
 	
-	pub fn get_ids(&self) -> std::collections::hash_map::Keys<Identifier, RawId> {
+	pub fn get_ids(&self) -> Keys<Identifier, RawId> {
 		self.0.keys()
 	}
 	
-	pub fn get_raw_ids(&self) -> std::collections::hash_map::Values<Identifier, RawId> {
+	pub fn get_raw_ids(&self) -> Values<Identifier, RawId> {
 		self.0.values()
 	}
 	
@@ -76,7 +76,7 @@ impl AssetLoader for RawIdsLoader {
 		Box::pin(async move {
 			let default_namespace = load_context.path().ancestors().nth(2).expect("raw ID file should be in directory \"<namespace>/ids\"").file_name().expect("path should not contain \"..\"").to_string_lossy().to_string();
 			let id_vec: Vec<Identifier> = ron::de::from_bytes(bytes)?;
-			let mut ids = HashMap::new();
+			let mut ids = BevyHashMap::new();
 			for (i, mut path) in id_vec.into_iter().enumerate() {
 				if path.namespace() == "null" {
 					path = Identifier::new(default_namespace.clone(), path.path().to_string());

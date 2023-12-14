@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use crate::utils::BevyHashMap;
 use std::fmt;
 use std::fmt::Formatter;
 
@@ -42,7 +42,7 @@ macro_rules! impl_try_into_bytes {
 			type Error = NetworkError;
 			
 			fn try_into(self) -> Result<Bytes, Self::Error> {
-				Ok($crate::util::serialize_be(&Message::$t(self))?.into())
+				Ok($crate::utils::serialize_be(&Message::$t(self))?.into())
 			}
 		}
 	};
@@ -65,7 +65,7 @@ pub enum ServerMessage {
 	PlayerPosition(ClientId, Position),
 	/// Syncs the server's [RawTileIds] with the client.
 	RawTileIds(RawTileIds),
-	WorldTiles(HashMap<TilePos, WorldTile>),
+	WorldTiles(BevyHashMap<TilePos, WorldTile>),
 }
 
 impl_try_into_bytes!(ServerMessage);

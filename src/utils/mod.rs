@@ -6,6 +6,7 @@ use regex::Regex;
 pub mod sanitize;
 pub mod tilehub;
 pub mod math;
+pub mod asset;
 
 pub static OPTIONS_BE: Lazy<WithOtherTrailing<WithOtherEndian<WithOtherIntEncoding<DefaultOptions, FixintEncoding>, BigEndian>, RejectTrailing>> = Lazy::new(|| {
 	DefaultOptions::new()
@@ -102,6 +103,14 @@ macro_rules! nonfatal_error_systems {
 		}
 	};
 }
+
+/// The standard [`HashMap`](std::collections::HashMap).
+pub type StdHashMap<K, V, S = std::collections::hash_map::RandomState> = std::collections::HashMap<K, V, S>;
+
+/// Bevy's [`HashMap`](bevy::utils::hashbrown::HashMap) that implements "aHash, a high speed keyed hashing algorithm intended for use in in-memory hashmaps."
+/// 
+/// Quoth the docs, "aHash is designed for performance and is NOT cryptographically secure."
+pub type BevyHashMap<K, V> = bevy::utils::HashMap<K, V>;
 
 pub(crate) use nonfatal_error_systems;
 

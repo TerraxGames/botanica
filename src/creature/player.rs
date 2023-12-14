@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::networking::Username;
 use crate::networking::protocol::{ClientId, PlayerData};
-use crate::util::math::Velocity;
+use crate::utils::math::Velocity;
 
 use super::CreatureBundle;
 
@@ -10,22 +10,23 @@ use super::CreatureBundle;
 pub struct Player; // TODO: make the eyes and arms their own sprites and allow them to rotate and move freely since we're only in 16x16. also, allow changing eye color.
 
 #[derive(Event)]
-pub struct SpawnPlayerEvent { // TODO: handle player spawning, gravity, and collision
+pub struct SpawnPlayerEvent { // TODO: handle player spawning and collision
 	pub transform: Transform,
 	pub id: ClientId,
 	pub data: PlayerData,
 }
 
+/// ### System
 /// "Decorates" the player (handles its eyes & arms).
 pub fn player_decoration(
 	time: Res<Time>,
-	player_query: Query<(&Transform, &Velocity), With<Player>>, // parent
+	player_query: Query<&Velocity, With<Player>>, // parent
 	mut eyes_query: Query<(&Parent, &mut Transform), With<PlayerEyes>>, // child
 	left_arm_query: Query<(&Parent, &Transform), With<PlayerLeftArm>>, // child
 	right_arm_query: Query<(&Parent, &Transform), With<PlayerRightArm>>, // child
 ) -> anyhow::Result<()> {
 	for (parent, mut eyes_transform) in eyes_query.iter_mut() {
-		let (_, player_velocity) = player_query.get(parent.get())?;
+		let player_velocity = player_query.get(parent.get())?;
 		if eyes_transform.translation.x >= 0.25 || eyes_transform.translation.x <= -0.25 { // continue if maximum eye look reached
 			continue
 		}

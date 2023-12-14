@@ -16,7 +16,7 @@ use crate::client;
 use crate::client::disconnect;
 use crate::networking::{DisconnectReason, protocol};
 use crate::networking::error::{NetworkError, NETWORK_ERROR_MESSAGE};
-use crate::util::nonfatal_error_systems;
+use crate::utils::nonfatal_error_systems;
 
 #[derive(Resource, Default)]
 struct WorldSelection(String);

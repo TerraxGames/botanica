@@ -3,7 +3,7 @@ use std::ops::Mul;
 use bevy::prelude::*;
 
 use crate::state::menu::{HOVERED_BUTTON, NORMAL_BUTTON};
-use crate::util::*;
+use crate::utils::*;
 
 #[derive(Component)]
 pub struct ButtonColor(pub <Self as NewType>::Inner);
