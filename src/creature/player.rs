@@ -18,7 +18,6 @@ pub struct SpawnPlayerEvent { // TODO: handle player spawning, gravity, and coll
 
 /// "Decorates" the player (handles its eyes & arms).
 pub fn player_decoration(
-	mut commands: Commands,
 	time: Res<Time>,
 	player_query: Query<(&Transform, &Velocity), With<Player>>, // parent
 	mut eyes_query: Query<(&Parent, &mut Transform), With<PlayerEyes>>, // child
