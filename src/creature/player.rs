@@ -1,9 +1,10 @@
 use bevy::prelude::*;
 
-use crate::creature::Creature;
 use crate::networking::Username;
 use crate::networking::protocol::{ClientId, PlayerData};
 use crate::util::math::Velocity;
+
+use super::CreatureBundle;
 
 #[derive(Component, Debug, Default, Clone)]
 pub struct Player; // TODO: make the eyes and arms their own sprites and allow them to rotate and move freely since we're only in 16x16. also, allow changing eye color.
@@ -25,7 +26,7 @@ pub fn player_decoration(
 	right_arm_query: Query<(&Parent, &Transform), With<PlayerRightArm>>, // child
 ) -> anyhow::Result<()> {
 	for (parent, mut eyes_transform) in eyes_query.iter_mut() {
-		let (player_transform, player_velocity) = player_query.get(parent.get())?;
+		let (_, player_velocity) = player_query.get(parent.get())?;
 		if eyes_transform.translation.x >= 0.25 || eyes_transform.translation.x <= -0.25 { // continue if maximum eye look reached
 			continue
 		}
@@ -70,10 +71,8 @@ pub struct PlayerRightArmBundle {
 /// A bundled player entity. Don't forget to add the eyes and arms as children!
 #[derive(Bundle, Clone)]
 pub struct PlayerBundle {
-	pub creature: Creature,
+	pub creature: CreatureBundle,
 	pub player: Player,
-	pub velocity: Velocity,
-	pub sprite: SpriteBundle,
 	pub id: ClientId,
 	pub data: PlayerData,
 }
@@ -83,8 +82,6 @@ impl Default for PlayerBundle {
         Self {
 			creature: Default::default(),
 			player: Default::default(),
-			velocity: Default::default(),
-			sprite: Default::default(),
 			id: ClientId(0),
 			data: PlayerData { username: Username("Player".to_string()) },
 		}
