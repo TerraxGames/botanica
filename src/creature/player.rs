@@ -8,6 +8,13 @@ use crate::util::math::Velocity;
 #[derive(Component, Debug, Default, Clone)]
 pub struct Player; // TODO: make the eyes and arms their own sprites and allow them to rotate and move freely since we're only in 16x16. also, allow changing eye color.
 
+#[derive(Event)]
+pub struct SpawnPlayerEvent { // TODO: handle player spawning, gravity, and collision
+	pub transform: Transform,
+	pub id: ClientId,
+	pub data: PlayerData,
+}
+
 /// "Decorates" the player (handles its eyes & arms).
 pub fn player_decoration(
 	mut commands: Commands,
