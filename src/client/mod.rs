@@ -31,7 +31,7 @@ pub struct NetworkingPlugin;
 
 impl Plugin for NetworkingPlugin {
 	fn build(&self, app: &mut App) {
-		let add_systems = app
+		app
 			.add_plugins(RenetClientPlugin)
 			.add_plugins(NetcodeClientPlugin)
 			.init_resource::<ServerConnectAddress>()
