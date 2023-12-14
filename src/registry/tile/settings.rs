@@ -78,7 +78,7 @@ pub enum TileSalience {
 impl TileSalience {
 	/// Translates the salience property into a Z coordinate.
 	#[inline]
-	pub fn into_z(&self) -> f32 {
+	pub const fn into_z(&self) -> f32 {
 		(*self as i32) as f32
 	}
 }
