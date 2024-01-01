@@ -8,6 +8,7 @@ use bevy::ecs::archetype::Archetypes;
 use bevy::ecs::component::ComponentId;
 use bevy::prelude::*;
 use bevy_egui::EguiPlugin;
+use creature::player::SpawnPlayerEvent;
 use raw_id::{RawIds, RawIdsLoader};
 use serde::{Deserialize, Serialize};
 
@@ -125,12 +126,13 @@ pub fn main() {
 	
 	app
 		.add_state::<GameState>()
+		.add_event::<SetTileEvent>()
+		.add_event::<SpawnPlayerEvent>()
 		.init_resource::<networking::stats::PlayerNetStats>()
 		.insert_resource(env)
 		.insert_resource(headless)
 		.init_resource::<TileRegistry>()
 		.init_resource::<loading::AssetsLoading>()
-		.add_event::<SetTileEvent>()
 		.add_plugins(loading::LoadingPlugin)
 		.add_plugins(physics::PhysicsPlugin);
 	

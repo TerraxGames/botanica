@@ -25,7 +25,7 @@ impl fmt::Display for Source {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		match self {
 			Self::Player(player_id, world_id) => {
-				f.write_fmt(format_args!("{}", player_id.0))?;
+				f.write_fmt(format_args!("%p{{{}}}", player_id.0))?;
 				if let Some(world_id) = world_id {
 					f.write_fmt(format_args!(" [in %w{{{}}}]", world_id.0))
 				} else {

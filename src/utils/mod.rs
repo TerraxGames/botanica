@@ -77,9 +77,9 @@ pub fn deserialize_trailing<'a, T>(bytes: &'a [u8]) -> Result<T, Error>
 		.deserialize(bytes)
 }
 
-pub fn strip_formatting(msg: String) -> String {
-	let re = Regex::new("`.").unwrap();
-	re.replace_all(&*msg, "").to_string()
+pub fn strip_formatting(msg: &str) -> String {
+	let re = Regex::new("`[a-zA-Z0-9]").unwrap();
+	re.replace_all(msg, "").to_string()
 }
 
 // cursed
@@ -87,6 +87,7 @@ pub trait NewType {
 	type Inner;
 }
 
+/// Automagically pipes systems that can return errors.
 macro_rules! nonfatal_error_systems {
     ( $error_msg:expr, $error:ty, $( $system_i:ident ),+ ) => {
 		{
@@ -104,6 +105,8 @@ macro_rules! nonfatal_error_systems {
 	};
 }
 
+pub(crate) use nonfatal_error_systems;
+
 /// The standard [`HashMap`](std::collections::HashMap).
 pub type StdHashMap<K, V, S = std::collections::hash_map::RandomState> = std::collections::HashMap<K, V, S>;
 
@@ -111,8 +114,6 @@ pub type StdHashMap<K, V, S = std::collections::hash_map::RandomState> = std::co
 /// 
 /// Quoth the docs, "aHash is designed for performance and is NOT cryptographically secure."
 pub type BevyHashMap<K, V> = bevy::utils::HashMap<K, V>;
-
-pub(crate) use nonfatal_error_systems;
 
 macro_rules! fatal_error_systems {
     ( $error_msg:expr, $error:ty, $( $system_i:ident ),+ ) => {

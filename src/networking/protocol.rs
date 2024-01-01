@@ -27,9 +27,9 @@ impl fmt::Display for ProtocolVersion {
 	}
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-/// A type of message.
-pub enum Message {
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Component)]
+/// A type of message/response.
+pub enum Packet {
 	ServerMessage(ServerMessage),
 	ServerResponse(ServerResponse),
 	ClientMessage(ClientMessage),
@@ -42,13 +42,13 @@ macro_rules! impl_try_into_bytes {
 			type Error = NetworkError;
 			
 			fn try_into(self) -> Result<Bytes, Self::Error> {
-				Ok($crate::utils::serialize_be(&Message::$t(self))?.into())
+				Ok($crate::utils::serialize_be(&Packet::$t(self))?.into())
 			}
 		}
 	};
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Component)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 /// A message that the server sends to a client (or to all/some clients).
 pub enum ServerMessage {
 	Ping {
@@ -57,7 +57,7 @@ pub enum ServerMessage {
 	},
 	/// Signals a disconnection is about to happen and gives the reason.
 	Disconnect(DisconnectReason),
-	PlayerJoin(ClientId, PlayerData),
+	PlayerJoin(ClientId, PlayerData, Position),
 	PlayerLeave(ClientId),
 	/// A request from a player to change their display name (nickname).
 	PlayerNick(ClientId, String),
@@ -70,19 +70,19 @@ pub enum ServerMessage {
 
 impl_try_into_bytes!(ServerMessage);
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Component)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 /// A message that the server sends to a client in response to a message from that client.
 pub enum ServerResponse {
 	JoinDeny(DisconnectReason),
 	JoinAccept,
-	Query { // todo: move to REST API
-		/// The protocol version.
-		protocol_ver: ProtocolVersion,
-		/// The game version string.
-		version: String,
-		/// The message of the day.
-		motd: String,
-	},
+	// Query { // todo: move to REST API
+	// 	/// The protocol version.
+	// 	protocol_ver: ProtocolVersion,
+	// 	/// The game version string.
+	// 	version: String,
+	// 	/// The message of the day.
+	// 	motd: String,
+	// },
 	PingAck {
 		/// The time the ping was sent.
 		timestamp: u128,
@@ -93,14 +93,13 @@ pub enum ServerResponse {
 
 impl_try_into_bytes!(ServerResponse);
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Component)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 /// A message that the client sends to the server.
 pub enum ClientMessage {
 	JoinRequest {
 		/// The version of the protocol.
 		protocol_ver: ProtocolVersion,
 	},
-	Query,
 	Ping {
 		/// The time the ping was sent.
 		timestamp: u128,
@@ -112,16 +111,9 @@ pub enum ClientMessage {
 
 impl_try_into_bytes!(ClientMessage);
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Bundle)]
-pub struct ClientMessageBundle {
-	pub id: ClientId,
-	pub message: ClientMessage,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Component)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 /// A message that the client sends to the server in response to a message the server sent.
 pub enum ClientResponse {
-	QueryAck,
 	PingAck {
 		/// The time the ping was sent.
 		timestamp: u128,
@@ -130,10 +122,10 @@ pub enum ClientResponse {
 
 impl_try_into_bytes!(ClientResponse);
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Bundle)]
-pub struct ClientResponseBundle {
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Bundle)]
+pub struct ClientMessageBundle {
 	pub id: ClientId,
-	pub response: ClientResponse,
+	pub packet: Packet,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Component, Error)]

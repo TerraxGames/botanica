@@ -281,8 +281,7 @@ fn button_action(
 				ButtonAction::Enter => {
 					commands.insert_resource(
 						ClientGameWorld {
-							name: world_name.0.clone(),
-							id: WorldId(0),
+							id: WorldId(world_name.0.clone()),
 							tiles: default(),
 							tile_sprites: default(),
 						}

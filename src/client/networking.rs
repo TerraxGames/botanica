@@ -10,12 +10,21 @@ use renet::{ConnectionConfig, DefaultChannel, RenetClient};
 use renet::transport::{ClientAuthentication, NetcodeClientTransport};
 
 use crate::asset::tile::TileDef;
+use crate::creature::player::PLAYER_Z;
+use crate::creature::player::Player;
+use crate::creature::player::SPAWN_PLAYER_EVENT_ERROR_MESSAGE;
+use crate::creature::player::SpawnPlayerEvent;
+use crate::creature::player::spawn_player_event;
 use crate::networking;
+use crate::networking::protocol::Packet;
 use crate::raw_id::tile::RawTileIds;
 use crate::registry::tile::TileRegistry;
 use crate::registry::tile::settings::TileSalience;
+use crate::server::networking::Players;
 use crate::tile::WorldTile;
 use crate::utils::asset::load_image;
+use crate::utils::math::HANDLE_TO_SCALE_ERROR_MESSAGE;
+use crate::utils::math::handle_to_scale;
 use crate::world::ClientGameWorld;
 use crate::world::SetTileEvent;
 use crate::world::TILE_EVENT_ERROR_MESSAGE;
@@ -51,7 +60,7 @@ impl Plugin for NetworkingPlugin {
 			.add_systems(
 				Update,
 				(
-					nonfatal_error_systems!(NETWORK_ERROR_MESSAGE, NetworkError, client, server_message, server_response),
+					nonfatal_error_systems!(NETWORK_ERROR_MESSAGE, NetworkError, client, receive_message),
 				)
 					.run_if(
 						in_state(GameState::WorldSelect)
@@ -64,6 +73,8 @@ impl Plugin for NetworkingPlugin {
 				Update,
 				(
 					nonfatal_error_systems!(TILE_EVENT_ERROR_MESSAGE, TileEventError, set_tile_event),
+					nonfatal_error_systems!(SPAWN_PLAYER_EVENT_ERROR_MESSAGE, anyhow::Error, spawn_player_event),
+					nonfatal_error_systems!(HANDLE_TO_SCALE_ERROR_MESSAGE, anyhow::Error, handle_to_scale),
 				)
 					.run_if(
 						in_state(GameState::InWorld)
@@ -162,6 +173,7 @@ fn setup(
 	commands.insert_resource(transport);
 	commands.insert_resource(ConnectedTime(Instant::now()));
 	commands.insert_resource(ConnectingTimeout(Duration::from_millis(protocol::CLIENT_TIMEOUT)));
+	commands.init_resource::<Players>();
 }
 
 fn connecting(
@@ -211,23 +223,23 @@ fn connecting(
 			send_message!(client, DefaultChannel::ReliableOrdered, protocol::ClientMessage::JoinRequest { protocol_ver: protocol::PROTOCOL_VER });
 		} else {
 			if let Some(buf) = client.receive_message(DefaultChannel::ReliableOrdered) {
-				let message = utils::deserialize_be::<protocol::Message>(&buf)?;
-				match message {
-					protocol::Message::ServerMessage(message) => {
+				let packet = utils::deserialize_be::<protocol::Packet>(&buf)?;
+				match packet {
+					protocol::Packet::ServerMessage(message) => {
 						match message {
 							ServerMessage::Disconnect(reason) => on_disconnect(DisconnectReason::Disconnected(reason), next_state.into_inner(), transport.into_inner(), client.into_inner()),
 							ServerMessage::RawTileIds(raw_tile_ids) => commands.insert_resource(raw_tile_ids),
 							_ => warn!("Unexpected message from server: {:?}", message),
 						}
 					},
-					protocol::Message::ServerResponse(response) => {
+					protocol::Packet::ServerResponse(response) => {
 						match response {
 							ServerResponse::JoinAccept => next_state.set(GameState::WorldSelect),
 							ServerResponse::JoinDeny(reason) => on_disconnect(DisconnectReason::Disconnected(reason), next_state.into_inner(), transport.into_inner(), client.into_inner()),
 							_ => warn!("Unexpected message from server: {:?}", response),
 						}
 					},
-					_ => warn!("Received incorrect/client message from server: {:?}", message),
+					_ => warn!("Received incorrect/client message from server: {:?}", packet),
 				}
 			}
 		}
@@ -254,15 +266,21 @@ fn client(
 	
 	for channel_id in 0..=2 {
 		while let Some(buf) = client.receive_message(channel_id) {
-			let message = utils::deserialize_be::<protocol::Message>(&buf)?;
-			match message {
-				protocol::Message::ServerMessage(message) => {
-					commands.spawn(message);
-				},
-				protocol::Message::ServerResponse(response) => {
-					commands.spawn(response);
-				},
-				_ => warn!("Received incorrect/client message from server: {:?}", message),
+			let packet = utils::deserialize_be::<Packet>(&buf);
+			
+			// allow processing all packets regardless of error
+			if let Ok(packet) = packet {
+				match packet {
+					Packet::ServerMessage(_) => {
+						commands.spawn(packet);
+					},
+					Packet::ServerResponse(_) => {
+						commands.spawn(packet);
+					},
+					_ => warn!("Received incorrect/client message from server: {:?}", packet),
+				}
+			} else if let Err(err) = packet {
+				eprintln!("{err}");
 			}
 		}
 	}
@@ -270,76 +288,86 @@ fn client(
 	Ok(())
 }
 
-fn server_message(
-	message_query: Query<(Entity, &ServerMessage)>,
+fn receive_message(
+	message_query: Query<(Entity, &Packet)>,
 	mut client: ResMut<RenetClient>,
 	mut commands: Commands,
 	mut next_state: ResMut<NextState<GameState>>,
 	mut transport: ResMut<NetcodeClientTransport>,
 	raw_tile_ids: Res<RawTileIds>,
 	mut ev_set_tile: EventWriter<SetTileEvent>,
+	mut spawn_player_event: EventWriter<SpawnPlayerEvent>,
+	mut client_world: Option<ResMut<ClientGameWorld>>,
+	players: Res<Players>,
+	mut player_transform_query: Query<&mut Transform, With<Player>>,
 ) -> Result<(), NetworkError> {
-	for (entity, message) in message_query.iter() {
+	for (entity, packet) in message_query.iter() {
 		commands.entity(entity).despawn();
-		println!("{:?}", message);
-		match message {
-			ServerMessage::Ping { timestamp } => {
-				send_message!(client, DefaultChannel::ReliableOrdered, protocol::ClientResponse::PingAck { timestamp: *timestamp });
-			},
-			ServerMessage::ChatMessage(chat_message) => {
-				commands.spawn(chat_message.clone());
-			},
-			ServerMessage::Disconnect(reason) => {
-				on_disconnect(networking::DisconnectReason::Disconnected(reason.clone()), &mut next_state, &mut transport, &mut client);
-			},
-			ServerMessage::WorldTiles(tiles) => {
-				for (pos, tile) in tiles.clone() {
-					let id = raw_tile_ids.get_id(tile.0);
-					if id.is_none() {
-						return Err(NetworkError::TileEventError(TileEventError::InvalidRawId(tile.0, pos)))
+		println!("{:?}", packet);
+		if let Packet::ServerMessage(message) = packet {
+			match message {
+				ServerMessage::Ping { timestamp } => {
+					send_message!(client, DefaultChannel::ReliableOrdered, protocol::ClientResponse::PingAck { timestamp: *timestamp });
+				},
+				ServerMessage::ChatMessage(chat_message) => {
+					commands.spawn(chat_message.clone());
+				},
+				ServerMessage::Disconnect(reason) => {
+					on_disconnect(networking::DisconnectReason::Disconnected(reason.clone()), &mut next_state, &mut transport, &mut client);
+				},
+				ServerMessage::WorldTiles(tiles) => {
+					for (pos, tile) in tiles.clone() {
+						let id = raw_tile_ids.get_id(tile.0);
+						if id.is_none() {
+							return Err(NetworkError::TileEventError(TileEventError::InvalidRawId(tile.0, pos)))
+						}
+						
+						ev_set_tile.send(
+							SetTileEvent {
+								pos,
+								id: id.unwrap().clone(),
+								data: tile.1,
+							}
+						);
 					}
-					
-					ev_set_tile.send(
-						SetTileEvent {
-							pos,
-							id: id.unwrap().clone(),
-							data: tile.1,
+				},
+				ServerMessage::PlayerJoin(client_id, data, spawnpoint) => {
+					spawn_player_event.send(
+						SpawnPlayerEvent {
+							transform: Transform::from_xyz(spawnpoint.x, spawnpoint.y, PLAYER_Z),
+							id: *client_id,
+							data: data.clone(),
 						}
 					);
-				}
-			},
-			_ => {},
-		}
-	}
-	
-	Ok(())
-}
-
-fn server_response(
-	response_query: Query<(Entity, &ServerResponse)>,
-	mut next_state: ResMut<NextState<GameState>>,
-	mut commands: Commands,
-	mut client_world: Option<ResMut<ClientGameWorld>>,
-) -> Result<(), NetworkError> {
-	for (entity, response) in response_query.iter() {
-		commands.entity(entity).despawn();
-		println!("{:?}", response);
-		match response {
-			ServerResponse::PingAck { timestamp } => {
-				let ping = time_since_epoch().as_millis() - timestamp;
-				commands.insert_resource(Ping(ping));
-			},
-			ServerResponse::EnterWorldAccept(world_id) => {
-				let client_world = client_world.as_mut().unwrap();
-				client_world.id = *world_id;
-				
-				next_state.set(GameState::LoadingWorld);
-			},
-			ServerResponse::EnterWorldDeny(reason) => {
-				commands.remove_resource::<ClientGameWorld>();
-				println!("Failed to enter world. Reason: {reason:?}");
-			},
-			_ => {},
+				},
+				ServerMessage::PlayerPosition(client_id, position) => {
+					if let Some(&player_entity) = players.get(client_id) {
+						if let Ok(mut transform) = player_transform_query.get_mut(player_entity) {
+							transform.translation.x = position.x;
+							transform.translation.y = position.y;
+						}
+					}
+				},
+				_ => {},
+			}
+		} else if let Packet::ServerResponse(response) = packet {
+			match response {
+				ServerResponse::PingAck { timestamp } => {
+					let ping = time_since_epoch().as_millis() - timestamp;
+					commands.insert_resource(Ping(ping));
+				},
+				ServerResponse::EnterWorldAccept(world_id) => {
+					let client_world = client_world.as_mut().unwrap();
+					client_world.id = world_id.clone();
+					
+					next_state.set(GameState::LoadingWorld);
+				},
+				ServerResponse::EnterWorldDeny(reason) => {
+					commands.remove_resource::<ClientGameWorld>();
+					println!("Failed to enter world. Reason: {reason:?}");
+				},
+				_ => {},
+			}
 		}
 	}
 	
@@ -378,7 +406,6 @@ fn set_tile_event(
 		let def = def.unwrap();
 		
 		if !def.is_air() { // spawn new tile if this isn't air
-			println!("{:?}", event.pos);
 			let raw_id = raw_tile_ids.get_raw_id(&event.id);
 			if raw_id.is_none() {
 				return Err(TileEventError::InvalidId(event.id.clone(), event.pos))

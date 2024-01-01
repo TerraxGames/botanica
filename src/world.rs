@@ -1,12 +1,11 @@
 use crate::utils::BevyHashMap;
-use std::hash::{BuildHasher, Hasher};
 use std::time::SystemTime;
 
 use bevy::prelude::*;
 use serde::{Serialize, Deserialize};
 use thiserror::Error;
 
-use crate::TilePos;
+use crate::{TilePos, Position};
 use crate::identifier::Identifier;
 use crate::networking::Username;
 use crate::raw_id::RawId;
@@ -36,11 +35,11 @@ impl ServerGameWorlds {
 		} else {
 			let save = open_or_gen_world(world_name, raw_tile_ids)?;
 			let world = ServerGameWorld {
-				name: world_name.to_string(),
+				id: WorldId(world_name.to_string()),
 				tiles: save.tiles,
 				players: default(),
 				bans: save.bans,
-				id: self.get_world_id(world_name),
+				spawnpoint: Position { x: 0.0, y: 1.0 }, // todo: implement customizable spawnpoint
 			};
 			self.add_world(world_name.to_string(), world);
 			Ok(self.0.get_mut(world_name).unwrap())
@@ -53,12 +52,6 @@ impl ServerGameWorlds {
 	
 	pub fn remove_world(&mut self, world_name: &str) {
 		self.0.remove(world_name);
-	}
-	
-	pub fn get_world_id(&self, world_name: &str) -> WorldId {
-		let mut hasher = self.0.hasher().build_hasher();
-		hasher.write(world_name.as_bytes());
-		WorldId(hasher.finish())
 	}
 }
 
@@ -110,16 +103,15 @@ pub const TILE_EVENT_ERROR_MESSAGE: &'static str = "A TileEventError has occurre
 
 #[derive(Clone)]
 pub struct ServerGameWorld {
-	pub name: String,
+	pub id: WorldId,
 	pub tiles: BevyHashMap<TilePos, WorldTile>,
 	pub players: Vec<Entity>,
 	pub bans: BevyHashMap<Username, WorldBan>,
-	pub id: WorldId,
+	pub spawnpoint: Position,
 }
 
 #[derive(Clone, Resource)]
 pub struct ClientGameWorld {
-	pub name: String,
 	pub id: WorldId,
 	pub tiles: BevyHashMap<TilePos, WorldTile>,
 	pub tile_sprites: BevyHashMap<TilePos, Entity>,
@@ -131,5 +123,5 @@ impl ClientGameWorld {
 	}
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Component)]
-pub struct WorldId(pub u64);
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Deref, DerefMut, Serialize, Deserialize, Component)]
+pub struct WorldId(pub String);
