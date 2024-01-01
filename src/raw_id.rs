@@ -1,6 +1,6 @@
 use crate::utils::BevyHashMap;
 
-use bevy::{prelude::*, reflect::{TypePath, TypeUuid}, asset::{AssetLoader, LoadedAsset}, utils::hashbrown::hash_map::{Keys, Values}};
+use bevy::{prelude::*, reflect::{TypePath, TypeUuid}, asset::{AssetLoader, io::Reader, AsyncReadExt}, utils::hashbrown::hash_map::{Keys, Values}};
 use serde::{Deserialize, Serialize};
 
 use crate::identifier::Identifier;
@@ -27,7 +27,7 @@ impl std::fmt::Display for RawId {
 	}
 }
 
-#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq, TypeUuid, TypePath)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq, Asset, TypeUuid, TypePath)]
 #[uuid = "7e34fcef-ef6e-442b-8ec2-576fc73620bf"]
 pub struct RawIds(BevyHashMap<Identifier, RawId>);
 
@@ -68,14 +68,22 @@ pub mod tile {
 pub struct RawIdsLoader;
 
 impl AssetLoader for RawIdsLoader {
+	type Asset = RawIds;
+	type Settings = ();
+	type Error = anyhow::Error;
+	
 	fn load<'a>(
 		&'a self,
-		bytes: &'a [u8],
+		reader: &'a mut Reader,
+		_settings: &'a Self::Settings,
 		load_context: &'a mut bevy::asset::LoadContext,
-	) -> bevy::utils::BoxedFuture<'a, anyhow::Result<(), anyhow::Error>> {
+	) -> bevy::utils::BoxedFuture<'a, Result<Self::Asset, Self::Error>> {
 		Box::pin(async move {
+			let bytes = vec![];
+			reader.read_to_end(&mut bytes);
+			
 			let default_namespace = load_context.path().ancestors().nth(2).expect("raw ID file should be in directory \"<namespace>/ids\"").file_name().expect("path should not contain \"..\"").to_string_lossy().to_string();
-			let id_vec: Vec<Identifier> = ron::de::from_bytes(bytes)?;
+			let id_vec: Vec<Identifier> = ron::de::from_bytes(&bytes)?;
 			let mut ids = BevyHashMap::new();
 			for (i, mut path) in id_vec.into_iter().enumerate() {
 				if path.namespace() == "null" {
@@ -85,9 +93,7 @@ impl AssetLoader for RawIdsLoader {
 				ids.insert(path, RawId(i as i32));
 			}
 			
-			load_context.set_default_asset(LoadedAsset::new(RawIds(ids)));
-			
-			Ok(())
+			Ok(RawIds(ids))
 		})
 	}
 

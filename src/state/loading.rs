@@ -1,4 +1,4 @@
-use bevy::asset::{LoadState, AssetServerError};
+use bevy::asset::{LoadState, LoadedFolder};
 use bevy::prelude::*;
 
 use crate::DEFAULT_LOCALE;
@@ -42,7 +42,7 @@ impl Plugin for LoadingPlugin {
 
 #[derive(Default, Resource)]
 pub struct AssetsLoading {
-	assets: Vec<HandleUntyped>,
+	assets: Vec<Handle<LoadedFolder>>,
 	finished: bool,
 }
 
@@ -57,15 +57,18 @@ fn load_assets(
 	mut loading: ResMut<AssetsLoading>,
 	asset_paths: Res<AssetPaths>,
 	mut tile_registry: ResMut<TileRegistry>,
+	loaded_folder_assets: Res<Assets<LoadedFolder>>,
 ) -> anyhow::Result<()> {
 	println!("Loading assets");
 	
 	for asset_path in asset_paths.iter() {
 		// add handles to tile definitions in tile registry
-		if let Ok(tiles) = asset_server.load_folder(from_asset_loc(asset_path, "tiles")) {
-			for handle in tiles {
+		let tiles_handle = asset_server.load_folder(from_asset_loc(asset_path, "tiles"));
+		let tiles_folder: Option<&LoadedFolder> =  loaded_folder_assets.get(tiles_handle);
+		if let Some(tiles_folder) = tiles_folder {
+			for handle in tiles_folder.handles {
 				let handle: Handle<TileDef> = handle.typed();
-				let path = asset_server.get_handle_path(handle.id());
+				let path = asset_server.get_path(handle);
 				if let Some(path) = path {
 					let mut path_buf = path.path().to_path_buf();
 					path_buf.set_extension("");
@@ -91,32 +94,8 @@ fn load_assets(
 		let tiles = asset_server.load_folder(from_asset_loc(asset_path, "tiles"));
 		
 		// add all assets to tracker
-		for folder in [(locale, "locale"), (fonts, "fonts"), (textures, "textures"), (ids, "ids"), (tiles, "tiles")] {
-			let folder = match folder.0 {
-				Ok(folder) => folder,
-				Err(err) => {
-					let ref err_ref = err;
-					match err_ref {
-						AssetServerError::AssetIoError(io_err) => {
-							match io_err {
-								bevy::asset::AssetIoError::NotFound(_) => {
-									if asset_path == NAMESPACE {
-										warn!("{} directory not found in assets!", folder.1);
-									}
-									
-									continue
-								},
-								_ => return Err(err.into()),
-							}
-						}
-						_ => return Err(err.into()),
-					}
-				},
-			};
-			
-			for handle in folder {
-				loading.assets.push(handle.clone());
-			}
+		for folder in [locale, fonts, textures, ids, tiles] {
+			loading.assets.push(folder.clone());
 		}
 	}
 	
@@ -132,77 +111,87 @@ fn check_assets_ready(
 	asset_paths: Res<AssetPaths>,
 	locale_assets: Res<Assets<LocaleAsset>>,
 	raw_ids_assets: Res<Assets<RawIds>>,
+	loaded_folder_assets: Res<Assets<LoadedFolder>>,
 ) -> anyhow::Result<()> {
 	let path_expect = "asset handle should have path";
 	
 	for handle in loading.assets.iter() {
-		let load_state = asset_server.get_load_state(handle.id());
+		let load_state = asset_server.load_state(handle);
 		match load_state {
 			LoadState::Failed => {
-				let path = asset_server.get_handle_path(handle.id()).expect(path_expect);
+				let path = asset_server.get_path(handle).expect(path_expect);
 				warn!("Failed to load asset at {:?}", path.path());
 			},
 			_ => {},
 		}
 	}
 	
-	match asset_server.get_group_load_state(loading.assets.iter().map(|handle| handle.id())) {
-		LoadState::Loaded => {
-			println!("Assets finished loading");
-			
-			loading.finished = true;
-			
-			if *env == EnvType::Server {
-				let mut raw_tile_ids: RawTileIds = default();
-				for asset_path in asset_paths.iter() {
-					let raw_ids_vec: Vec<HandleUntyped> = asset_server.load_folder(from_asset_loc(asset_path, "ids"))?; // todo: don't require that the ids folder be present
-					for handle in raw_ids_vec {
-						let raw_ids_asset = raw_ids_assets.get(&handle.clone().typed::<RawIds>()).unwrap();
-						let file_name = asset_server.get_handle_path(handle).unwrap().path().file_name().unwrap().to_string_lossy().to_string();
-						match file_name.as_str() {
-							"tile.ids.ron" => {
-								for id in raw_ids_asset.get_ids() {
-									let raw_id = raw_ids_asset.get_raw_id(id).unwrap();
-									raw_tile_ids.register(id.clone(), raw_id);
-								}
-							},
-							_ => unimplemented!("unknown Raw ID type: {}", file_name),
+	let mut loaded = false;
+	for folder in loading.assets {
+		match asset_server.load_state(folder) {
+			LoadState::Loaded => {
+				// signal we may have loaded, and continue
+				loaded = true;
+				continue
+			},
+			LoadState::Failed => {
+				panic!("asset load state failed");
+			},
+			_ => {
+				// signal we're not loaded yet, and break
+				loaded = false;
+				break
+			},
+		}
+	}
+	
+	if loaded {
+		loading.finished = true;
+		
+		if *env == EnvType::Server {
+			let mut raw_tile_ids: RawTileIds = default();
+			for asset_path in asset_paths.iter() {
+				let raw_ids_folder_handle: Handle<LoadedFolder> = asset_server.load(format!("{asset_path}/ids"));
+				let raw_ids_folder: Option<&LoadedFolder> = loaded_folder_assets.get(raw_ids_folder_handle);
+				if let Some(raw_ids_folder) = raw_ids_folder {
+					for handle in raw_ids_folder.handles {
+						let raw_tile_ids_asset = raw_ids_assets.get(handle.clone()).unwrap();
+						let file_name = asset_server.get_path(handle.typed::<RawIds>()).unwrap().path().file_name().unwrap().to_string_lossy().to_string();
+						for id in raw_tile_ids_asset.get_ids() {
+							let raw_id = raw_tile_ids_asset.get_raw_id(id).unwrap();
+							raw_tile_ids.register(id.clone(), raw_id);
 						}
 					}
 				}
-				
-				// add air tile
-				raw_tile_ids.register(Identifier::from_str("null", "air"), RawId(-1));
-				// add missingno tile
-				raw_tile_ids.register(Identifier::from_str("null", "null"), RawId(-2));
-				
-				commands.insert_resource(raw_tile_ids);
 			}
 			
-			let current_locale = CurrentLocale::new(DEFAULT_LOCALE.to_string()); // todo: change locale based on settings
+			// add air tile
+			raw_tile_ids.register(Identifier::from_str("null", "air"), RawId(-1));
+			// add missingno tile
+			raw_tile_ids.register(Identifier::from_str("null", "null"), RawId(-2));
 			
-			let mut translation_server = TranslationServer::new(asset_server.clone());
-			
-			let locale_assets = locale_assets.into_inner();
-			for asset_path in asset_paths.iter() {
-				translation_server.load_all(&asset_path, current_locale.locale(), locale_assets)?;
+			commands.insert_resource(raw_tile_ids);
+		}
+		
+		let current_locale = CurrentLocale::new(DEFAULT_LOCALE.to_string()); // todo: change locale based on settings
+		
+		let mut translation_server = TranslationServer::new(asset_server.clone());
+		
+		let locale_assets = locale_assets.into_inner();
+		for asset_path in asset_paths.iter() {
+			translation_server.load_all(&asset_path, current_locale.locale(), locale_assets)?;
+		}
+		
+		commands.insert_resource(translation_server);
+		commands.insert_resource(current_locale);
+		
+		next_state.set(
+			if *env == EnvType::Client {
+				GameState::BevySplash
+			} else {
+				GameState::ServerLoading
 			}
-			
-			commands.insert_resource(translation_server);
-			commands.insert_resource(current_locale);
-			
-			next_state.set(
-				if *env == EnvType::Client {
-					GameState::BevySplash
-				} else {
-					GameState::ServerLoading
-				}
-			)
-		},
-		LoadState::Failed => {
-			panic!("group load state failed");
-		},
-		_ => {},
+		)
 	}
 	
 	Ok(())

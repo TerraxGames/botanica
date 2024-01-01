@@ -1,9 +1,9 @@
 use bevy::render::render_resource::{TextureFormat, TextureDescriptor, Extent3d, TextureDimension, TextureUsages};
-use bevy::render::texture::{DEFAULT_IMAGE_HANDLE, ImageSampler};
+use bevy::render::texture::ImageSampler;
 use bevy::prelude::*;
 
 /// Returns a 2x2 missingno texture.
-pub fn missingno() -> Image {
+pub fn missingno(width: u32, height: u32) -> Image {
 	let format = TextureFormat::Rgba8UnormSrgb;
 	let data = vec![
 	 // magenta					 black
@@ -15,8 +15,8 @@ pub fn missingno() -> Image {
 		data,
 		texture_descriptor: TextureDescriptor {
 			size: Extent3d {
-				width: 2,
-				height: 2,
+				width,
+				height,
 				depth_or_array_layers: 1,
 			},
 			format,
@@ -27,7 +27,7 @@ pub fn missingno() -> Image {
 			usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
 			view_formats: &[],
 		},
-		sampler_descriptor: ImageSampler::nearest(),
+		sampler: ImageSampler::nearest(),
 		texture_view_descriptor: None,
 	}
 }
@@ -38,6 +38,6 @@ impl Plugin for MissingnoImagePlugin {
     fn build(&self, app: &mut App) {
         app.world
 			.resource_mut::<Assets<Image>>()
-			.set_untracked(DEFAULT_IMAGE_HANDLE, missingno());
+			.insert(Handle::default(), missingno(2, 2));
     }
 }

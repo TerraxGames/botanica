@@ -1,6 +1,6 @@
 use crate::utils::BevyHashMap;
 
-use bevy::{asset::{Handle, AssetDynamic, Asset}, reflect::{TypeUuid, TypePath}};
+use bevy::{asset::{Handle, Asset}, reflect::{TypeUuid, TypePath}};
 
 use crate::identifier::Identifier;
 
@@ -11,12 +11,12 @@ pub mod def;
 /// For example, this is useful when retrieving a tile definition from its identifier.
 #[derive(Default)]
 pub struct Registry<T>
-	where T: TypeUuid + TypePath + AssetDynamic + Asset {
+	where T: TypeUuid + TypePath + Asset {
 	handles: BevyHashMap<Identifier, Handle<T>>,
 }
 
 impl<T> Registry<T>
-	where T: TypeUuid + TypePath + AssetDynamic + Asset {
+	where T: TypeUuid + TypePath + Asset {
 	pub fn new() -> Self {
 		Self {
 			handles: BevyHashMap::new(),

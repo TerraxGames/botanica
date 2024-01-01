@@ -3,7 +3,6 @@ use std::str::FromStr;
 
 use asset::image::MissingnoImagePlugin;
 use asset::tile::{TileDef, TileDefLoader};
-use bevy::asset::{AssetIo, AssetIoError};
 use bevy::ecs::archetype::Archetypes;
 use bevy::ecs::component::ComponentId;
 use bevy::prelude::*;
@@ -98,13 +97,6 @@ pub enum GameState {
 	ServerLoaded,
 }
 
-fn default_asset_plugin() -> AssetPlugin {
-	AssetPlugin {
-		asset_folder: "assets".to_string(),
-		watch_for_changes: None,
-	}
-}
-
 #[derive(Component, Debug, Default, Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct TilePos {
 	pub x: i32,
@@ -139,12 +131,12 @@ pub fn main() {
 	if headless.0 && env == EnvType::Server {
 		app
 			.add_plugins(MinimalPlugins)
-			.add_plugins(default_asset_plugin());
+			.add_plugins(AssetPlugin::default());
 	} else {
 		app
 			.add_plugins(
 				DefaultPlugins
-					.set(default_asset_plugin())
+					.set(AssetPlugin::default())
 					.set(ImagePlugin::default_nearest()) // so our sprites appear crisp and clear
 					.add_after::<ImagePlugin, _>(MissingnoImagePlugin)
 			)
@@ -164,11 +156,11 @@ pub fn main() {
 	}
 	
 	app
-		.add_asset::<LocaleAsset>()
+		.init_asset::<LocaleAsset>()
 		.init_asset_loader::<LocaleAssetLoader>()
-		.add_asset::<TileDef>()
+		.init_asset::<TileDef>()
 		.init_asset_loader::<TileDefLoader>()
-		.add_asset::<RawIds>()
+		.init_asset::<RawIds>()
 		.init_asset_loader::<RawIdsLoader>();
 	
 	if env == EnvType::Client {
@@ -210,14 +202,6 @@ pub fn get_components_for_entity<'a>(
 		}
 	}
 	None
-}
-
-/// Loads the bytes of an asset.
-pub async fn load_asset_bytes(
-	path: String,
-	asset_io: &dyn AssetIo,
-) -> anyhow::Result<Vec<u8>, AssetIoError> {
-	asset_io.load_path(path.as_ref()).await
 }
 
 fn id(path: &str) -> Identifier {

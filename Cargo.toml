@@ -6,16 +6,16 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bevy = { version = "0.11", features = ["trace"] } # todo: add wayland support
+bevy = { version = "0.12", features = ["trace"] } # todo: add wayland support
 serde = { version = "1", features = ["derive"] }
 bincode = "1.3"
 ron = "0.8.1"
 anyhow = "1"
 thiserror = "1"
-bevy_egui = { version = "0.21", features = ["immutable_ctx"] }
-renet = "0.0.13"
-renet_visualizer = { version = "0.0.6", features = ["bevy"] }
-bevy_renet = "0.0.9"
+bevy_egui = { version = "0.24", features = ["immutable_ctx"] }
+renet = "0.0.14"
+renet_visualizer = { version = "0.0.7", features = ["bevy"] }
+bevy_renet = "0.0.10"
 rsa = "0.9.2"
 rand = "0.8"
 futures = "0.3"

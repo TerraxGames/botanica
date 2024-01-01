@@ -4,7 +4,6 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 
 pub mod sanitize;
-pub mod tilehub;
 pub mod math;
 pub mod asset;
 

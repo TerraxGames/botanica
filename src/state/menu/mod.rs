@@ -2,13 +2,10 @@
 
 use std::convert::Into;
 
-use bevy::asset::{AssetIo, AssetIoError, FileAssetIo};
 use bevy::prelude::*;
 use bevy::render::camera::ScalingMode;
 use bevy_egui::{egui, EguiContext, EguiContexts};
 use futures::executor;
-
-use crate::{from_asset_loc, load_asset_bytes, NAMESPACE};
 
 pub mod title_screen;
 pub mod button;
@@ -41,7 +38,6 @@ const BUTTON_TEXT_SIZE: f32 = 32.0;
 pub fn init_ui(
 	mut commands: Commands,
 	mut contexts: EguiContexts,
-	asset_server: Res<AssetServer>,
 ) {
 	commands.spawn(
 		Camera2dBundle {
@@ -55,28 +51,6 @@ pub fn init_ui(
 			..default()
 		}
 	);
-	
-	let monogram = executor::block_on(load_asset_bytes(from_asset_loc(NAMESPACE, "fonts/monogram/monogram-extended.ttf"), asset_server.asset_io())).expect("Failed to load monogram font");
-	let mut fonts = egui::FontDefinitions::default();
-	
-	fonts.font_data.insert(
-		"monogram".to_owned(),
-		egui::FontData::from_owned(monogram),
-	);
-	
-	fonts
-		.families
-		.entry(egui::FontFamily::Proportional)
-		.or_default()
-		.insert(0, "monogram".to_owned());
-	
-	fonts
-		.families
-		.entry(egui::FontFamily::Monospace)
-		.or_default()
-		.insert(0, "monogram".to_owned());
-	
-	contexts.ctx().set_fonts(fonts);
 	
 	let mut style = egui::Style::default();
 	let ref mut visuals = style.visuals;
